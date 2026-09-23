@@ -1,0 +1,106 @@
+{
+  "id": "02",
+  "short": "로컬 클러스터 설치",
+  "title": "내 컴퓨터에 작은 클러스터",
+  "description": "도구를 설치하고 첫 페이지가 뜨는 순간까지.",
+  "type": "개념 + 실습",
+  "sources": [
+    [
+      "minikube 설치",
+      "https://minikube.sigs.k8s.io/docs/start/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "세 가지 도구, 서로 다른 역할",
+      "lead": "Docker가 실행 환경을 제공하고, minikube가 클러스터를 만들며, kubectl이 명령을 전달합니다.",
+      "cards": [
+        [
+          "Docker",
+          "이번 실습에서 minikube Node를 컨테이너로 실행할 기반."
+        ],
+        [
+          "minikube",
+          "로컬 클러스터의 생성·중지·재시작을 담당."
+        ],
+        [
+          "kubectl",
+          "Kubernetes API 서버에 요청하는 클라이언트."
+        ]
+      ],
+      "notes": [
+        "Docker Desktop의 내장 Kubernetes는 켜지 않아도 됩니다. 이번 수업에서는 minikube가 만든 클러스터 하나를 사용합니다.",
+        "최소 요구 사항은 공식 설치 페이지에서 확인하세요. 작은 실습을 위해 minikube에 CPU 2개·메모리 4GB를 할당하는 예시를 사용합니다. 호스트 운영체제와 Docker가 사용할 여유 자원도 필요합니다. 부족하면 Gateway 실습은 강사 시연으로 진행하세요."
+      ]
+    },
+    {
+      "title": "OS에 맞게 설치합니다",
+      "lead": "아래 명령은 Docker와 패키지 관리자가 설치된 환경에서 실행합니다.",
+      "kind": "SETUP",
+      "code": "# Windows PowerShell (winget 필요)\nwinget install -e --id Docker.DockerDesktop\nwinget install -e --id Kubernetes.minikube\nwinget install -e --id Kubernetes.kubectl\n\n# macOS (Homebrew 필요)\nbrew install --cask docker\nbrew install minikube kubectl",
+      "notes": [
+        "Windows: Docker Desktop 공식 Windows 설치 가이드의 지원 OS·WSL 2·가상화 요구사항을 먼저 확인합니다. 설치 후 Docker Desktop을 실행하고 Linux containers 모드를 사용합니다. 필요하면 재부팅합니다.",
+        "macOS: Intel/Apple Silicon에 맞는 Docker Desktop을 설치하고 앱을 한 번 실행합니다. Linux: 배포판별 Docker Engine 공식 절차를 따르고 현재 계정에서 docker info가 성공하도록 설정합니다. Linux용 minikube와 kubectl은 공식 페이지의 CPU 아키텍처별 바이너리 설치 절차를 사용합니다.",
+        "설치 권한·회사 네트워크·패키지 관리자 정책이 다르면 공식 설치 파일 방식을 사용합니다. 이 페이지의 명령을 실행했다고 Docker 엔진이 자동으로 준비되는 것은 아닙니다."
+      ],
+      "sources": [
+        [
+          "minikube 설치",
+          "https://minikube.sigs.k8s.io/docs/start/"
+        ],
+        [
+          "Docker 설치",
+          "https://docs.docker.com/engine/install/"
+        ],
+        [
+          "Docker Desktop Windows",
+          "https://docs.docker.com/desktop/setup/install/windows-install/"
+        ],
+        [
+          "kubectl 설치",
+          "https://kubernetes.io/docs/tasks/tools/"
+        ]
+      ]
+    },
+    {
+      "title": "클러스터를 만들고 연결을 확인합니다",
+      "lead": "터미널에서 다음 명령을 순서대로 실행합니다.",
+      "kind": "LAB",
+      "code": "docker info\nminikube version\nkubectl version --client\nminikube start --driver=docker --cpus=2 --memory=4096\nminikube status\nkubectl config current-context\nkubectl get nodes",
+      "notes": [
+        "이후 Gateway 설치 전에는 선택한 Envoy Gateway 버전의 Kubernetes 호환성 표를 확인합니다. 스터디 구성원은 첫 모임에서 kubectl get nodes에 보이는 서버 버전을 기록하고 동일한 버전으로 맞추는 것이 좋습니다.",
+        "Context는 클러스터·사용자·기본 Namespace를 묶은 접속 설정입니다. 명령 실행 전 current-context가 minikube인지 확인하세요."
+      ],
+      "expected": "minikube 상태가 Running이고 Node가 Ready입니다. 첫 이미지 다운로드에는 시간이 걸릴 수 있습니다.",
+      "trouble": "docker info가 실패하면 Docker 엔진부터 확인합니다. Node가 Ready가 아니면 minikube logs로 확인합니다. 인터넷 다운로드가 차단되면 승인된 이미지 미러나 사전 반입이 필요하며 명령만으로 해결되지 않습니다."
+    },
+    {
+      "title": "첫 앱을 실행해 봅시다",
+      "lead": "공개 예제 이미지를 실행하고, 내 컴퓨터의 포트로 연결합니다.",
+      "kind": "LAB",
+      "code": "kubectl create namespace study\nkubectl -n study create deployment welcome --image=nginx:1.28-alpine\nkubectl -n study rollout status deployment/welcome\nkubectl -n study port-forward deployment/welcome 8080:80",
+      "notes": [
+        "브라우저에서 http://localhost:8080 을 엽니다. 이 터미널은 연결을 유지하므로 명령을 더 입력하려면 새 터미널을 열거나 Ctrl+C로 포트 포워딩을 종료합니다.",
+        "8080:80은 내 컴퓨터의 8080 포트를 선택된 Pod의 80 포트에 연결한다는 의미입니다. 외부 도메인이나 공인 IP가 필요하지 않습니다. 이미 Namespace가 있으면 AlreadyExists는 정상적으로 이해하고 다음 명령으로 진행합니다."
+      ],
+      "expected": "Welcome to nginx! 페이지가 표시됩니다.",
+      "trouble": "8080을 다른 프로그램이 쓰면 18080:80으로 바꾸고 localhost:18080으로 접속합니다. ImagePullBackOff면 이미지 이름과 다운로드 접근을 확인합니다."
+    },
+    {
+      "title": "오늘 만든 환경은 다시 사용할 수 있습니다",
+      "lead": "중지는 보관, 삭제는 초기화입니다.",
+      "code": "kubectl -n study get pods\nkubectl -n study delete deployment welcome\nminikube stop\n# 다음 스터디 시작 시\nminikube start\n# 전체 실습 환경을 버릴 때만: minikube delete",
+      "notes": [
+        "welcome Deployment만 삭제하면 다른 실습 리소스는 유지됩니다. 다음 주에는 같은 study Namespace에서 이어갑니다.",
+        "실습 명령은 프로젝트의 k8s/labs 폴더에서 실행하는 것으로 통일합니다. 웹 페이지로만 학습한다면 제공된 실습 파일을 같은 폴더에 저장하세요."
+      ]
+    },
+    {
+      "title": "브라우저 접속이 끊겼는데 Pod는 Running입니다. 왜일까요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "포트 포워딩 터미널이 종료되었을 수 있습니다. Running은 컨테이너 실행 상태이고, 브라우저에서 Pod까지 연결이 유지된다는 의미는 아닙니다. port-forward 명령을 다시 실행하고 포트 번호를 확인하세요.",
+      "notes": []
+    }
+  ]
+}

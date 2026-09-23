@@ -1,0 +1,157 @@
+{
+  "id": "09",
+  "short": "Rollout · 배포 전략",
+  "title": "새 버전을 안전하게 전달하기",
+  "description": "롤링 업데이트·블루-그린·카나리를 그림으로 비교합니다.",
+  "type": "개념 + 실습",
+  "sources": [
+    [
+      "Deployment",
+      "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+    ],
+    [
+      "Probes",
+      "https://kubernetes.io/docs/concepts/workloads/pods/probes/"
+    ],
+    [
+      "Blue-Green",
+      "https://argo-rollouts.readthedocs.io/en/stable/features/bluegreen/"
+    ],
+    [
+      "Canary",
+      "https://argo-rollouts.readthedocs.io/en/stable/features/canary/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "Rollout은 새 상태를 실제 환경에 펼치는 과정",
+      "lead": "배포 전략은 기존 버전을 어떤 순서로 교체하고, 사용자 요청을 언제 전환할지 정합니다.",
+      "cards": [
+        [
+          "Rollout",
+          "새 이미지나 Pod 템플릿을 실행 환경에 반영."
+        ],
+        [
+          "Rolling Update",
+          "기존 Pod를 점진적으로 교체하는 전략."
+        ],
+        [
+          "Rollback",
+          "문제가 있는 변경을 이전 상태로 되돌림."
+        ]
+      ],
+      "notes": [
+        "이름이 비슷해도 Rollout은 전체 과정, Rolling Update는 한 가지 배포 전략입니다. Deployment는 기본적으로 RollingUpdate 전략을 지원합니다.",
+        "Argo Rollouts는 별도의 Controller와 Rollout 리소스를 제공하는 프로젝트입니다. kubectl rollout 명령을 사용하기 위해 Argo Rollouts를 설치할 필요는 없습니다."
+      ]
+    },
+    {
+      "title": "롤링 업데이트: 조금씩 교체합니다",
+      "lead": "기존 Pod를 일부 유지하면서 새 Pod를 만들고, 준비되면 기존 Pod를 줄입니다.",
+      "strategy": "rolling",
+      "notes": [
+        "그림은 replicas=3, maxSurge=1, maxUnavailable=0의 단순화된 순서입니다. 새 Pod가 Ready가 되기 전에는 기존 처리 용량을 줄이지 않는 의도를 표현합니다. 종료 중인 Pod 등 실제 순간 개수는 더 복잡할 수 있습니다.",
+        "일반적인 Deployment에서 시작하기 쉽고 추가 자원이 비교적 적습니다. 다만 배포 중 v1·v2가 동시에 요청을 받으므로 API·세션·정적 자산 호환성을 고려해야 합니다. 실패한 새 Pod가 Ready가 되지 않으면 진행이 멈출 수 있습니다."
+      ],
+      "callout": "Pod를 교체하는 전략이지, 사용자 요청을 정확히 10%씩 나누는 기능은 아닙니다."
+    },
+    {
+      "title": "블루-그린: 준비한 뒤 목적지를 전환합니다",
+      "lead": "Blue가 서비스하는 동안 Green을 별도로 준비하고 검증합니다.",
+      "strategy": "bluegreen",
+      "notes": [
+        "Blue와 Green은 버전 환경을 구분하는 이름입니다. 전환 전 Green은 별도 검증 경로로 테스트하고, 준비되면 운영 요청의 목적지를 바꿉니다.",
+        "이전 환경을 유지하면 되돌리기 쉬운 편이지만 두 환경을 동시에 띄우는 자원이 필요합니다. 연결 유지와 라우팅 규칙 전파 때문에 모든 기존 연결이 정확히 같은 순간에 바뀌는 것은 아닙니다. DB 스키마 등 외부 상태는 트래픽 전환만으로 복구되지 않습니다."
+      ],
+      "sources": [
+        [
+          "Blue-Green",
+          "https://argo-rollouts.readthedocs.io/en/stable/features/bluegreen/"
+        ]
+      ]
+    },
+    {
+      "title": "카나리: 일부 요청으로 먼저 검증합니다",
+      "lead": "새 버전으로 보내는 비율을 낮게 시작하고 결과를 확인하며 늘립니다.",
+      "strategy": "canary",
+      "notes": [
+        "v1 90%·v2 10% → 50%·50% → v2 100%라는 계획을 예로 듭니다. 각 단계에서 오류율·응답 시간·핵심 사용자 동작을 확인합니다. 실패하면 v2 비중을 줄이거나 중단합니다.",
+        "8주차의 HTTPRoute weight 변경이 요청 분할의 기본 메커니즘입니다. 그것만으로 자동 분석·승인·롤백까지 생기는 것은 아닙니다. Argo Rollouts 같은 도구는 지원되는 라우터 연동과 분석 설정을 통해 이를 자동화할 수 있습니다."
+      ],
+      "sources": [
+        [
+          "Canary",
+          "https://argo-rollouts.readthedocs.io/en/stable/features/canary/"
+        ],
+        [
+          "트래픽 분할",
+          "https://gateway-api.sigs.k8s.io/guides/user-guides/traffic-splitting/"
+        ]
+      ]
+    },
+    {
+      "title": "세 전략, 어떤 차이가 있을까요?",
+      "lead": "교체 단위·추가 자원·검증 방식으로 비교해 보세요.",
+      "cards": [
+        [
+          "Rolling Update",
+          "Pod를 순차 교체. 비교적 적은 추가 자원. 구·신버전 공존을 고려."
+        ],
+        [
+          "Blue-Green",
+          "두 환경 준비 후 전환. 더 많은 자원. 전환 전 검증과 빠른 경로 복귀."
+        ],
+        [
+          "Canary",
+          "일부 요청부터 확대. 실제 트래픽으로 검증. 지표와 라우팅 제어가 필요."
+        ]
+      ],
+      "notes": [
+        "빠른 전환이 중요하고 추가 환경 비용을 감당할 수 있다면 Blue-Green을 검토할 수 있습니다. 실제 사용자 요청으로 위험을 제한하며 관찰하려면 Canary가 도움이 됩니다. 일반적인 Stateless 앱의 기본 업데이트에는 Rolling Update부터 이해하면 좋습니다.",
+        "어떤 전략도 앱·DB의 하위 호환성을 자동으로 해결하지 않습니다. 이번 스터디에서는 세 전략만 비교하고 Argo Rollouts 설치 실습은 하지 않습니다."
+      ]
+    },
+    {
+      "title": "준비된 Pod만 요청을 받아야 합니다",
+      "lead": "Probe마다 실패했을 때의 동작이 다릅니다.",
+      "cards": [
+        [
+          "Readiness",
+          "요청을 받아도 되는가? 실패 시 일반 Service의 준비된 대상에서 제외."
+        ],
+        [
+          "Liveness",
+          "회복을 위해 컨테이너를 재시작해야 하는가?"
+        ],
+        [
+          "Startup",
+          "시작이 오래 걸리는 앱의 초기화 완료를 기다림. 성공 전 다른 Probe를 지연."
+        ]
+      ],
+      "file": "probes-patch.yaml",
+      "notes": [
+        "다운로드한 probes-patch.yaml은 전체 리소스가 아닌 Deployment patch입니다. kubectl -n study patch deployment frontend --patch-file probes-patch.yaml로 적용합니다. /healthz 응답은 실습용으로 단순화되어 있습니다.",
+        "외부 API가 잠깐 느리다고 Liveness를 실패시켜 모든 Pod를 재시작하는 구성은 문제를 악화할 수 있습니다. Readiness와 Liveness의 판단 기준은 앱 특성에 맞게 설계합니다. CPU requests 50m은 0.05 CPU이며 limits는 사용 상한 설정입니다."
+      ]
+    },
+    {
+      "title": "실습: 실패한 Rollout을 복구합니다",
+      "lead": "잘못된 이미지 태그를 지정해 배포가 멈추는 상태를 관찰합니다.",
+      "kind": "LAB",
+      "code": "kubectl apply -f route.yaml\nkubectl -n study patch deployment frontend --patch-file probes-patch.yaml\nkubectl -n study rollout status deployment/frontend\nkubectl -n study set image deployment/frontend web=fe-study:does-not-exist\nkubectl -n study rollout status deployment/frontend --timeout=60s\nkubectl -n study get pods\nkubectl -n study rollout history deployment/frontend\nkubectl -n study rollout undo deployment/frontend\nkubectl -n study rollout status deployment/frontend",
+      "notes": [
+        "시작 전에 정상 v1 이미지가 로드되어 있고 기존 3개 Pod가 Ready인지 확인합니다. 새로운 잘못된 이미지는 가져올 수 없어 새 Pod가 Ready가 되지 않습니다. maxUnavailable: 0이므로 정상 기존 Pod를 유지하려고 합니다.",
+        "rollout undo는 이전 Pod 템플릿으로 되돌립니다. ConfigMap 내용이나 DB 변경 등 모든 외부 상태를 되돌리는 명령은 아닙니다. 복구 후 Git이나 로컬 YAML도 올바른 상태여야 다음 apply에서 잘못된 값을 다시 넣지 않습니다."
+      ],
+      "expected": "새 Pod에 이미지 오류가 나타나고 rollout status는 시간 초과할 수 있습니다. undo 후 정상 ReplicaSet으로 수렴합니다.",
+      "trouble": "기존 Pod까지 비정상이면 describe와 이전 이미지 가용성부터 확인합니다. 포트 포워딩한 Pod가 교체되면 터널을 다시 열어야 할 수 있습니다."
+    },
+    {
+      "title": "새 버전이 Ready라면 카나리 검증은 끝난 걸까요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "아닙니다. Ready는 요청 처리 준비 상태의 신호입니다. 실제 오류율, 지연, 구매·로그인 같은 사용자 동작까지 성공한다는 보장은 없으므로 관찰 기준이 필요합니다.",
+      "notes": []
+    }
+  ]
+}

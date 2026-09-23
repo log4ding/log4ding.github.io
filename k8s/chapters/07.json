@@ -1,0 +1,108 @@
+{
+  "id": "07",
+  "short": "Gateway API",
+  "title": "요청 라우팅을 직접 구성하기",
+  "description": "도메인 없이 localhost에서 Gateway를 거칩니다.",
+  "type": "개념 + 실습",
+  "sources": [
+    [
+      "Gateway API",
+      "https://gateway-api.sigs.k8s.io/docs/concepts/api-overview/"
+    ],
+    [
+      "Envoy Gateway 설치",
+      "https://gateway.envoyproxy.io/docs/tasks/quickstart/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "Gateway API는 역할을 나눕니다",
+      "lead": "누가 입구를 운영하고, 누가 앱의 경로를 정의하는지 구분합니다.",
+      "cards": [
+        [
+          "GatewayClass",
+          "사용할 구현을 정의. 이 수업에서는 Envoy Gateway."
+        ],
+        [
+          "Gateway",
+          "HTTP Listener 같은 트래픽 수신 설정."
+        ],
+        [
+          "HTTPRoute",
+          "어떤 요청을 어느 Service에 보낼지 정의."
+        ]
+      ],
+      "notes": [
+        "Gateway API는 Kubernetes에 확장 리소스(CRD)로 설치됩니다. CRD는 API 서버가 새 종류의 리소스를 알게 하고, Controller는 그 리소스의 동작을 구현합니다.",
+        "이번에는 같은 사람이 세 리소스를 작성하지만 팀에서는 플랫폼 담당자가 Gateway를, 앱 개발자가 HTTPRoute를 관리할 수 있습니다. ReferenceGrant 같은 네임스페이스 간 권한은 심화 주제로 남깁니다."
+      ]
+    },
+    {
+      "title": "실습 준비: Envoy Gateway 설치",
+      "lead": "2~5주차의 클러스터·이미지·Deployment·Service가 준비된 상태에서 진행합니다.",
+      "kind": "SETUP",
+      "code": "# Helm을 공식 설치 안내에 따라 먼저 설치합니다.\nhelm version\nhelm install eg oci://docker.io/envoyproxy/gateway-helm --version v1.9.1 -n envoy-gateway-system --create-namespace\nkubectl wait --timeout=5m -n envoy-gateway-system deployment/envoy-gateway --for=condition=Available",
+      "notes": [
+        "v1.9.1은 문서 확인 시점의 공식 Quickstart 예시입니다. 실행 전에 공식 Compatibility Matrix와 자신의 Kubernetes 버전을 대조하세요. 외부 이미지·Helm 차트 다운로드가 필요합니다. 이미 설치되어 있다면 반복 install 대신 helm list -n envoy-gateway-system으로 상태를 확인합니다.",
+        "이 Helm 설치는 Gateway API CRD도 설치합니다. 수업은 기존 CRD가 없는 로컬 클러스터 기준입니다. 공식 Quickstart의 별도 예제 앱은 설치하지 않고, 다음 슬라이드부터 우리의 frontend 앱을 연결합니다."
+      ],
+      "sources": [
+        [
+          "Envoy Gateway 설치",
+          "https://gateway.envoyproxy.io/docs/tasks/quickstart/"
+        ],
+        [
+          "Helm 설치",
+          "https://helm.sh/docs/intro/install/"
+        ],
+        [
+          "호환성 표",
+          "https://gateway.envoyproxy.io/news/releases/matrix/"
+        ]
+      ],
+      "expected": "envoy-gateway Deployment가 Available 상태입니다.",
+      "trouble": "no matches for kind는 CRD 준비 여부를 확인합니다. Helm 네트워크 접근이 제한되면 강사가 승인된 차트·이미지를 사전 제공해야 합니다."
+    },
+    {
+      "title": "GatewayClass와 Gateway 만들기",
+      "lead": "호스트 이름 조건 없이 HTTP 80번 Listener를 만듭니다.",
+      "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: GatewayClass\nmetadata:\n  name: eg\nspec:\n  controllerName: gateway.envoyproxy.io/gatewayclass-controller\n---\napiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata:\n  name: study-gateway\n  namespace: study\nspec:\n  gatewayClassName: eg\n  listeners:\n    - name: http\n      protocol: HTTP\n      port: 80\n      allowedRoutes:\n        namespaces:\n          from: Same",
+      "file": "gateway.yaml",
+      "notes": [
+        "kubectl apply -f gateway.yaml을 실행합니다. GatewayClass는 클러스터 범위이며 Gateway는 study Namespace에 있습니다. controllerName은 Envoy Gateway 구현이 처리할 값입니다.",
+        "allowedRoutes의 Same은 같은 Namespace의 Route만 붙이도록 제한합니다. 여기서는 frontend HTTPRoute도 study에 생성합니다. 외부 주소가 없어도 뒤에서 프록시 Service로 포트 포워딩할 수 있습니다."
+      ]
+    },
+    {
+      "title": "HTTPRoute로 앱을 연결합니다",
+      "lead": "이 리소스는 Gateway를 부모로 삼고 frontend Service를 대상으로 삼습니다.",
+      "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: frontend\n  namespace: study\nspec:\n  parentRefs:\n    - name: study-gateway\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80",
+      "file": "route.yaml",
+      "notes": [
+        "kubectl apply -f route.yaml을 실행합니다. parentRefs.name은 Gateway 이름, backendRefs.name은 Service 이름입니다. port: 80은 Service 포트입니다.",
+        "hostnames를 지정하지 않아 localhost 요청을 허용합니다. /와 /api 요청은 모두 같은 샘플 앱으로 갑니다. 이는 앱을 단순화하기 위한 것으로 운영에서 FE·API Service를 분리할 수도 있습니다."
+      ]
+    },
+    {
+      "title": "프록시 Service를 찾아 localhost로 연결하기",
+      "lead": "Controller 관리 포트가 아니라 생성된 Envoy 프록시의 Service를 선택합니다.",
+      "kind": "LAB",
+      "code": "kubectl -n study get gateway,httproute\nkubectl -n study describe httproute frontend\nkubectl -n envoy-gateway-system get svc -l gateway.envoyproxy.io/owning-gateway-name=study-gateway\n# 실제 출력의 Service 이름으로 ENVOY_SERVICE_NAME을 바꾸세요.\nkubectl -n envoy-gateway-system port-forward svc/ENVOY_SERVICE_NAME 8888:80",
+      "notes": [
+        "브라우저에서 http://localhost:8888 과 http://localhost:8888/api 를 확인합니다. 이 연결은 프록시 Pod로 들어간 뒤 HTTPRoute에 따라 backend를 고르므로 Service 직접 포워딩과 다릅니다.",
+        "HTTPRoute의 Accepted·ResolvedRefs 상태를 확인합니다. 외부 LoadBalancer가 없는 로컬 환경에서는 Gateway Address가 비어 있거나 관련 조건이 아직 준비되지 않을 수 있습니다. 프록시 Pod가 Running이고 경로가 수락되었는지 함께 확인하세요."
+      ],
+      "expected": "localhost:8888에서 샘플 화면과 API JSON이 보입니다.",
+      "trouble": "404면 HTTPRoute 연결과 경로를, 503 등 업스트림 오류면 Service·EndpointSlice·Pod readiness를 확인합니다. 아직 Envoy Service가 없다면 Controller 로그와 Gateway 상태를 확인합니다."
+    },
+    {
+      "title": "HTTPRoute에 적는 80은 Pod 포트인가요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "아닙니다. backendRefs의 port는 대상 Service의 포트입니다. Service가 targetPort: 8080으로 Pod에 연결합니다.",
+      "notes": [
+        "전체 흐름을 말해 보세요: localhost:8888 → 포트 포워딩 → Envoy 프록시 → HTTPRoute 목적지 선택 → frontend Service의 대상 Pod. 실제 프록시는 Service VIP 대신 Endpoint에 직접 연결할 수도 있습니다."
+      ]
+    }
+  ]
+}

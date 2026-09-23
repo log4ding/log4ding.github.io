@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello
+  namespace: study
+  labels:
+    app: hello
+spec:
+  containers:
+    - name: web
+      image: fe-study:v1
+      imagePullPolicy: IfNotPresent
+      ports:
+        - containerPort: 8080

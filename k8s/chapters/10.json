@@ -1,0 +1,130 @@
+{
+  "id": "10",
+  "short": "종합 실습 · Argo CD",
+  "title": "연결하고, 진단하고, 설명하기",
+  "description": "전체 흐름을 완성하고 Git 기반 배포를 맛봅니다.",
+  "type": "개념 + 실습",
+  "sources": [
+    [
+      "Pod 디버깅",
+      "https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/"
+    ],
+    [
+      "Argo CD",
+      "https://argo-cd.readthedocs.io/en/stable/getting_started/"
+    ],
+    [
+      "Argo Rollouts",
+      "https://argo-rollouts.readthedocs.io/en/stable/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "마지막 미션: 요청 한 번을 끝까지 설명하기",
+      "lead": "localhost에서 시작한 요청이 어떤 설정을 거쳐 어떤 Pod에 도착하는지 설명합니다.",
+      "flow": [
+        "Browser :8888",
+        "Envoy Proxy",
+        "HTTPRoute",
+        "Service 대상",
+        "Pod :8080"
+      ],
+      "notes": [
+        "앞선 실습의 study Namespace와 Envoy Gateway가 준비된 상태에서 진행합니다. 순서는 Deployment·Service 복원 → Gateway/HTTPRoute 확인 → 프록시 포트 포워딩 → 화면/API 확인입니다.",
+        "실습 50분·장애 진단 30분·발표 20분·Argo CD 소개 20분의 예시 진행안입니다. 팀마다 한 사람이 설명하고 다른 사람이 명령 결과로 검증해 보세요."
+      ]
+    },
+    {
+      "title": "기본 상태로 맞추고 연결합니다",
+      "lead": "9주차까지 작성한 파일을 그대로 사용합니다.",
+      "kind": "LAB",
+      "code": "kubectl apply -f deployment.yaml\nkubectl apply -f service.yaml\nkubectl apply -f gateway.yaml\nkubectl apply -f route.yaml\nkubectl -n study rollout status deployment/frontend\nkubectl -n study get pods,svc,gateway,httproute\nkubectl -n study get endpointslice",
+      "notes": [
+        "7주차 방식으로 Envoy 프록시 Service를 찾아 8888:80으로 포트 포워딩합니다. 화면의 API 호출 버튼에서 version과 pod가 출력되는지 확인합니다.",
+        "시간이 남으면 split.yaml을 적용해 가중치 분할도 다시 관찰합니다. 발표에는 관리 관계 그림과 요청 흐름 그림을 각각 그려 보세요."
+      ],
+      "expected": "도메인 설정 없이 localhost:8888에서 화면과 API 응답이 보입니다."
+    },
+    {
+      "title": "장애 미션: Service 대상이 사라졌습니다",
+      "lead": "service.yaml의 selector.app을 wrong으로 바꿔 적용한 뒤 진단합니다.",
+      "kind": "TROUBLESHOOTING",
+      "code": "kubectl apply -f service.yaml\nkubectl -n study get svc frontend -o yaml\nkubectl -n study get pods --show-labels\nkubectl -n study get endpointslice -l kubernetes.io/service-name=frontend\n# 원인 확인 후 selector.app을 frontend로 복구하고 다시 apply",
+      "notes": [
+        "Pod는 Running인데 프록시 요청이 실패하는 상황을 만듭니다. Service가 선택할 Pod가 없어지면 EndpointSlice에 유효 대상이 없게 됩니다. 앱을 다시 빌드하거나 DNS를 수정할 문제가 아닙니다.",
+        "연습이 끝나면 파일의 selector를 반드시 복원합니다. 다음 사람이 같은 실습 폴더를 사용해도 정상 상태에서 시작할 수 있어야 합니다."
+      ],
+      "expected": "selector를 복구하면 Endpoint가 다시 연결되고 API 응답이 회복됩니다."
+    },
+    {
+      "title": "오류 메시지에서 확인 위치를 고릅니다",
+      "lead": "증상을 추측으로 덮지 말고, 상태와 이벤트를 먼저 읽습니다.",
+      "cards": [
+        [
+          "Pending",
+          "describe의 Events에서 자원·스케줄링 문제 확인."
+        ],
+        [
+          "ImagePullBackOff",
+          "이미지 이름·태그·인증·네트워크·로컬 로드 여부 확인."
+        ],
+        [
+          "CrashLoopBackOff",
+          "logs와 logs --previous로 앱 종료 원인 확인."
+        ]
+      ],
+      "code": "kubectl -n study describe pod POD_NAME\nkubectl -n study logs POD_NAME\nkubectl -n study logs POD_NAME --previous\nkubectl -n study get events --sort-by=.metadata.creationTimestamp",
+      "notes": [
+        "POD_NAME은 실제 이름으로 바꿉니다. --previous는 이전에 종료된 컨테이너의 로그가 있을 때 사용합니다. 종료 기록이 없으면 에러가 날 수 있습니다.",
+        "브라우저 실패 → 프록시 규칙 → Service selector/port → Endpoint → Pod readiness/logs 순서로 범위를 좁힙니다. 404·503 등의 정확한 의미와 본문은 프록시 구현 및 앱에 따라 확인합니다."
+      ]
+    },
+    {
+      "title": "Argo CD는 무엇을 배포할까요?",
+      "lead": "Git에 선언한 Kubernetes 상태와 실제 클러스터 상태를 비교하고 맞추는 도구입니다.",
+      "kind": "CONCEPT ONLY · 15 MIN",
+      "flow": [
+        "코드 변경",
+        "CI: 이미지 생성",
+        "Git: 이미지 태그 변경",
+        "Argo CD: Sync",
+        "Kubernetes: Rollout"
+      ],
+      "notes": [
+        "CI는 테스트하고 이미지를 만드는 단계입니다. Argo CD는 기본적으로 앱 소스를 이미지로 빌드하는 도구가 아니라, Git 등에 저장된 Kubernetes 선언을 반영하는 배포 도구입니다.",
+        "Sync는 선언을 반영하는 동작입니다. Synced는 Git과 실제 설정이 일치한다는 뜻이고, 앱이 건강하다는 Health 상태와는 다릅니다. 자동 반영 여부는 설정에 따라 다릅니다. 이번 과정은 설치·저장소 연결·실제 배포 없이 그림으로만 설명합니다."
+      ]
+    },
+    {
+      "title": "Argo CD · Rollout · Argo Rollouts",
+      "lead": "세 이름을 한 문장으로 연결해 봅시다.",
+      "cards": [
+        [
+          "Argo CD",
+          "원하는 배포 설정을 클러스터에 반영."
+        ],
+        [
+          "Rollout",
+          "그 변경을 실제 실행 상태에 반영하는 과정."
+        ],
+        [
+          "Argo Rollouts",
+          "Canary·Blue-Green 등 점진적 배포를 돕는 별도 Controller."
+        ]
+      ],
+      "notes": [
+        "Argo CD가 Deployment 이미지 태그 변경을 반영하면 Kubernetes Deployment 컨트롤러가 Rolling Update를 수행할 수 있습니다. 이 과정에 Argo Rollouts는 필수가 아닙니다.",
+        "Argo Rollouts를 사용한다면 별도 Rollout 리소스로 전략을 정의할 수 있고 Argo CD는 그 선언을 전달할 수 있습니다. 같은 Argo 이름을 가졌어도 역할은 다릅니다. 도구 설치와 설정은 후속 과정으로 남깁니다."
+      ]
+    },
+    {
+      "title": "스터디를 마치며: 이제 설명할 수 있나요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "① Deployment→ReplicaSet→Pod는 관리 관계. ② Service는 안정적 접점이며 VIP는 가상 주소. ③ Gateway API는 요청 라우팅 설정. ④ 위치 선호도와 버전별 가중치는 별개. ⑤ Rollout은 과정, 세 가지 전략은 교체·전환 방식. ⑥ Argo CD는 Git의 배포 선언을 반영하는 도구입니다.",
+      "notes": [
+        "마무리: 포트 포워딩 터미널을 종료하고 minikube stop으로 환경을 보관합니다. 전체 환경이 더 이상 필요 없을 때만 minikube delete로 삭제하세요."
+      ]
+    }
+  ]
+}

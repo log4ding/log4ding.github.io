@@ -1,0 +1,18 @@
+# 설명용: 이 파일만으로 Controller가 설치되지 않습니다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend
+  namespace: study
+spec:
+  ingressClassName: example-controller
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

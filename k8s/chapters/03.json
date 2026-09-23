@@ -1,0 +1,107 @@
+{
+  "id": "03",
+  "short": "컨테이너와 Pod",
+  "title": "내 앱을 Pod에서 실행하기",
+  "description": "동일한 예제를 앞으로의 모든 실습에 사용합니다.",
+  "type": "개념 + 실습",
+  "sources": [
+    [
+      "Dockerfile",
+      "https://docs.docker.com/get-started/docker-concepts/building-images/writing-a-dockerfile/"
+    ],
+    [
+      "Pod",
+      "https://kubernetes.io/docs/concepts/workloads/pods/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "이미지는 실행 재료, 컨테이너는 실행 결과",
+      "lead": "코드·런타임·설정을 이미지로 포장하면 같은 실행 재료를 전달할 수 있습니다.",
+      "flow": [
+        "소스 파일",
+        "Dockerfile",
+        "이미지",
+        "컨테이너",
+        "Pod"
+      ],
+      "notes": [
+        "이 수업은 프레임워크 설치 시간을 줄이기 위해 별도 npm 의존성이 없는 작은 Node HTTP 서버를 제공합니다. HTML 페이지와 /api 응답을 함께 제공하므로 FE 요청 흐름에 집중할 수 있습니다.",
+        "실제 React/Vue 정적 앱은 보통 빌드 결과물을 웹 서버 이미지에 복사합니다. SSR 앱은 서버 런타임도 실행해야 합니다. 이 예제는 HTTP 서버 학습용이며 프로덕션 FE 배포 템플릿을 대신하지 않습니다."
+      ]
+    },
+    {
+      "title": "실습 앱의 세 가지 주소",
+      "lead": "/는 화면, /api는 JSON, /healthz는 상태 확인용입니다.",
+      "cards": [
+        [
+          "GET /",
+          "버전과 Pod 이름, API 호출 버튼을 보여 줍니다."
+        ],
+        [
+          "GET /api",
+          "{ version, pod } 값을 반환합니다."
+        ],
+        [
+          "GET /healthz",
+          "상태 확인 요청에 ok를 반환합니다."
+        ]
+      ],
+      "file": "server.mjs",
+      "notes": [
+        "server.mjs를 다운로드하세요. API 버튼은 상대 경로 /api를 호출하므로 브라우저가 현재 접속한 호스트와 포트를 그대로 사용합니다. 클러스터 내부 Service 이름을 브라우저 코드에 넣지 않습니다.",
+        "서버는 0.0.0.0:8080에서 대기합니다. 컨테이너 안에서 127.0.0.1에만 바인딩하면 다른 Pod나 Service가 접근할 수 없습니다."
+      ]
+    },
+    {
+      "title": "Dockerfile 한 줄씩 읽기",
+      "lead": "server.mjs와 Dockerfile을 같은 폴더에 저장합니다.",
+      "code": "FROM node:22-alpine\nWORKDIR /app\nCOPY server.mjs .\nENV APP_VERSION=v1\nEXPOSE 8080\nUSER node\nCMD [\"node\", \"server.mjs\"]",
+      "file": "Dockerfile",
+      "notes": [
+        "FROM은 기반 이미지, WORKDIR은 작업 경로, COPY는 빌드 입력 복사입니다. CMD는 컨테이너 시작 시 실행할 명령입니다. USER node는 비루트 사용자로 프로세스를 실행합니다.",
+        "EXPOSE는 사용 포트에 대한 메타데이터입니다. 외부 포트를 자동으로 개방하지 않습니다. 로컬 연결은 docker run의 -p, Kubernetes 연결은 Service나 포트 포워딩으로 구성합니다."
+      ]
+    },
+    {
+      "title": "이미지를 만들고 minikube로 전달하기",
+      "lead": "내 Docker에 있는 이미지가 minikube 안에도 자동으로 있다는 가정은 하지 않습니다.",
+      "kind": "LAB",
+      "code": "docker build -t fe-study:v1 .\ndocker run --rm -p 18080:8080 fe-study:v1\n# localhost:18080 확인 후 Ctrl+C\nminikube image load fe-study:v1",
+      "notes": [
+        "첫 명령 마지막의 점은 현재 폴더가 빌드 컨텍스트라는 뜻입니다. Dockerfile과 server.mjs가 있는 폴더에서 실행합니다.",
+        "로컬 이미지는 레지스트리에 업로드하지 않고 minikube image load로 전달합니다. 여러 Node를 사용한다면 필요한 Node에 이미지가 있는지 별도로 확인합니다."
+      ],
+      "expected": "localhost:18080에 Hello Kubernetes · v1이 표시되고 API 버튼을 누르면 JSON이 나타납니다."
+    },
+    {
+      "title": "Pod 선언을 읽어봅시다",
+      "lead": "metadata는 이름표, spec은 원하는 실행 설정입니다.",
+      "code": "apiVersion: v1\nkind: Pod\nmetadata:\n  name: hello\n  namespace: study\n  labels:\n    app: hello\nspec:\n  containers:\n    - name: web\n      image: fe-study:v1\n      imagePullPolicy: IfNotPresent\n      ports:\n        - containerPort: 8080",
+      "file": "pod.yaml",
+      "notes": [
+        "apiVersion과 kind는 어떤 종류의 API 객체인지 지정합니다. metadata.namespace는 study로 범위를 지정하고 labels.app은 나중에 대상을 찾는 이름표입니다.",
+        "imagePullPolicy: IfNotPresent는 로컬에 해당 이미지가 있으면 사용하는 설정입니다. 이미지 이름을 바꾸면 minikube에 새 이미지도 로드해야 합니다. containerPort는 앱 포트를 명시하지만 실제 서버가 그 포트에서 실행되어야 합니다."
+      ]
+    },
+    {
+      "title": "직접 올리고 로그를 확인합니다",
+      "lead": "실습 파일을 저장한 폴더에서 실행하세요.",
+      "kind": "LAB",
+      "code": "kubectl apply -f pod.yaml\nkubectl -n study get pods -o wide\nkubectl -n study describe pod hello\nkubectl -n study logs hello\nkubectl -n study port-forward pod/hello 8080:8080",
+      "notes": [
+        "이 서버는 요청 로그를 따로 출력하지 않으므로 logs가 비어 있어도 정상일 수 있습니다. describe의 Events는 이미지 다운로드·스케줄링 등의 상태를 보여줍니다.",
+        "종료할 때 포트 포워딩을 Ctrl+C로 끊고 kubectl -n study delete pod hello를 실행하세요. 단독 Pod는 삭제해도 다시 생성되지 않습니다. 다음 주에 이 차이를 확인합니다."
+      ],
+      "expected": "Pod가 Running, READY가 1/1이고 localhost:8080에서 앱이 보입니다.",
+      "trouble": "ErrImagePull/ImagePullBackOff라면 fe-study:v1 로드 여부를 확인합니다. Pending이면 describe의 Events에서 자원 부족 등 스케줄링 원인을 확인합니다."
+    },
+    {
+      "title": "EXPOSE 8080을 쓰면 브라우저에서 바로 접속할 수 있나요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "아닙니다. 앱이 포트를 열고 있어야 하며, 컨테이너나 클러스터 밖에서 접근하려면 별도 연결 경로가 필요합니다. 이번에는 port-forward를 사용합니다.",
+      "notes": []
+    }
+  ]
+}

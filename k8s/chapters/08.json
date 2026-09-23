@@ -1,0 +1,96 @@
+{
+  "id": "08",
+  "short": "Traffic Distribution",
+  "title": "어디로, 얼마나 보낼까",
+  "description": "위치 선호도와 버전별 가중치를 구분합니다.",
+  "type": "개념 + 실습",
+  "sources": [
+    [
+      "Service",
+      "https://kubernetes.io/docs/concepts/services-networking/service/"
+    ],
+    [
+      "Virtual IP",
+      "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+    ],
+    [
+      "트래픽 분할",
+      "https://gateway-api.sigs.k8s.io/guides/user-guides/traffic-splitting/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "트래픽 분산에는 서로 다른 질문이 있습니다",
+      "lead": "가까운 Pod를 고르는 것과 새 버전에 일부 요청을 보내는 것은 다릅니다.",
+      "cards": [
+        [
+          "기본 분산",
+          "사용 가능한 여러 대상에 연결을 나눕니다."
+        ],
+        [
+          "위치 선호",
+          "같은 Node·Zone의 대상을 선호할 수 있습니다."
+        ],
+        [
+          "버전 비율",
+          "v1과 v2 서비스로 보내는 요청 비중을 정합니다."
+        ]
+      ],
+      "notes": [
+        "Service 프록시 방식은 구현에 따라 다릅니다. 매 HTTP 요청이 정확히 순서대로 다른 Pod로 가는 라운드로빈이라고 단정하지 마세요. 연결 재사용 때문에 같은 Pod로 여러 요청이 갈 수 있습니다.",
+        "이번 주는 버전별 비율을 실제로 관찰합니다. 위치 선호도는 단일 Node 로컬 클러스터에서 차이를 검증하기 어려우므로 그림과 YAML 읽기로 학습합니다."
+      ]
+    },
+    {
+      "title": "Service의 trafficDistribution",
+      "lead": "같은 Zone·Node 등 네트워크 위치에 따른 선호도를 표현합니다.",
+      "code": "# 학습용 필드 예시. 지원 버전을 먼저 확인합니다.\nspec:\n  trafficDistribution: PreferSameZone\n\n# 설치된 서버 API가 제공하는 설명 확인\n# kubectl explain service.spec.trafficDistribution",
+      "notes": [
+        "PreferClose는 가까운 Endpoint, 일반적으로 같은 Zone을 선호하는 값입니다. PreferSameZone은 같은 Zone, PreferSameNode는 같은 Node를 선호하는 의미를 더 명시적으로 드러냅니다. 지원 여부·feature gate는 Kubernetes 버전에 따라 다르므로 현재 서버 설명과 공식 문서를 확인합니다.",
+        "이는 트래픽 비율 90:10이나 엄격한 접근 제한이 아닙니다. internalTrafficPolicy 또는 externalTrafficPolicy가 Local일 때는 해당 트래픽에 로컬 Endpoint 제약이 우선합니다. 로컬 대상이 없을 때의 동작도 선호도 fallback과 혼동하지 마세요."
+      ],
+      "callout": "Pod를 어느 Node에 배치할지 정하는 스케줄링 설정도 아닙니다."
+    },
+    {
+      "title": "v1과 v2를 별도 대상으로 준비합니다",
+      "lead": "같은 코드 이미지의 APP_VERSION만 달리해 라우팅 관찰용 v2를 만듭니다.",
+      "kind": "LAB",
+      "code": "kubectl apply -f deployment.yaml\nkubectl apply -f service.yaml\nkubectl apply -f v2.yaml\nkubectl -n study rollout status deployment/frontend-v2\nkubectl -n study get deployment,service",
+      "file": "v2.yaml",
+      "notes": [
+        "v2.yaml은 app: frontend-v2 라벨을 사용하는 Deployment와 Service입니다. v1의 frontend selector와 겹치지 않습니다. 여기서 v2는 실제 코드 업데이트가 아니라 요청 분산을 눈으로 확인하기 위한 환경 변수 표시입니다.",
+        "다운로드 파일에는 전체 YAML이 포함되어 있습니다. frontend는 3개, frontend-v2는 2개 Pod를 사용하므로 노트북 자원을 확인하세요."
+      ],
+      "expected": "frontend와 frontend-v2라는 두 Service 및 두 Deployment가 보입니다."
+    },
+    {
+      "title": "Gateway에서 90:10 가중치로 분할합니다",
+      "lead": "가중치의 합에 대한 비율로 요청을 분할합니다.",
+      "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: frontend\n  namespace: study\nspec:\n  parentRefs:\n    - name: study-gateway\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80\n          weight: 90\n        - name: frontend-v2\n          port: 80\n          weight: 10",
+      "file": "split.yaml",
+      "notes": [
+        "kubectl apply -f split.yaml은 이전 HTTPRoute frontend를 수정합니다. backendRefs에서 frontend의 weight는 90, frontend-v2는 10입니다. 합이 반드시 100일 필요는 없지만 수업에서는 이해하기 쉽게 맞춥니다.",
+        "Gateway API 가중치는 기대 비율입니다. 10번 호출했다고 반드시 v2가 1번 나오는 보장은 없습니다. 결과를 판단할 때 충분한 샘플 수와 프록시 동작을 고려합니다."
+      ]
+    },
+    {
+      "title": "요청을 모아 실제 비율을 관찰하기",
+      "lead": "7주차의 Envoy 프록시 포트 포워딩을 켠 상태에서 새 터미널을 사용합니다.",
+      "kind": "LAB",
+      "code": "# Windows PowerShell\n1..100 | ForEach-Object { (Invoke-RestMethod http://localhost:8888/api).version } | Group-Object\n\n# macOS / Linux shell\nfor i in $(seq 1 100); do curl -s http://localhost:8888/api; echo; done",
+      "notes": [
+        "PowerShell은 v1·v2별 개수를 그룹으로 표시합니다. macOS/Linux 명령은 JSON을 한 줄씩 보여주므로 버전 값으로 개수를 세어 봅니다. 다른 포트의 Service 직접 포워딩 결과와 혼동하지 마세요.",
+        "split.yaml의 weight를 50:50으로 바꾸고 다시 apply한 뒤 반복합니다. 마지막에 kubectl apply -f route.yaml로 단일 frontend 경로를 복원합니다."
+      ],
+      "expected": "충분한 호출에서 가중치에 가까운 경향을 관찰합니다. 정확한 일치가 검증 기준은 아닙니다.",
+      "trouble": "한 버전만 보이면 API 응답의 version, HTTPRoute의 현재 backendRefs, Accepted 상태 및 대상 Service의 Endpoint를 확인합니다."
+    },
+    {
+      "title": "Pod 수가 v1 3개, v2 2개면 HTTPRoute의 90:10이 무효인가요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "아닙니다. Gateway가 Service 간 요청 비율을 선택한 뒤 각 Service의 Endpoint로 전달합니다. Pod 개수와 Service 간 가중치는 다른 설정입니다. 단, 실제 처리 용량은 Pod 개수와 자원에 영향을 받습니다.",
+      "notes": []
+    }
+  ]
+}

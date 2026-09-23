@@ -1,0 +1,114 @@
+{
+  "id": "06",
+  "short": "Ingress와 요청 라우팅",
+  "title": "외부 요청의 입구 이해하기",
+  "description": "호스트와 경로에 따라 목적지를 선택합니다.",
+  "type": "개념 + 요청 추적",
+  "sources": [
+    [
+      "Ingress",
+      "https://kubernetes.io/docs/concepts/services-networking/ingress/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "리버스 프록시는 요청을 대신 전달합니다",
+      "lead": "브라우저가 내부 서버 주소를 모두 알 필요 없도록 앞에서 요청을 받아 전달합니다.",
+      "flow": [
+        "브라우저: /api",
+        "리버스 프록시",
+        "API Service",
+        "API Pod"
+      ],
+      "notes": [
+        "일반적인 네트워크 게이트웨이는 다른 네트워크로 패킷을 보내는 출구입니다. 여기서 다룰 HTTP 리버스 프록시는 호스트·경로 같은 HTTP 정보를 보고 백엔드를 고릅니다.",
+        "Ingress는 이 라우팅 규칙을 선언하는 Kubernetes 리소스입니다. Controller와 실제 프록시 구현이 있어야 규칙이 동작합니다. 이 주차는 리소스 읽기와 요청 추적에 집중하고, 실제 프록시 설치 실습은 7주차 Gateway API에서 통일합니다."
+      ]
+    },
+    {
+      "title": "Ingress 리소스와 Controller는 다릅니다",
+      "lead": "규칙을 저장했다고 트래픽을 처리하는 프로그램까지 자동 설치되지는 않습니다.",
+      "cards": [
+        [
+          "Ingress",
+          "호스트·경로와 대상 Service를 적은 규칙."
+        ],
+        [
+          "IngressClass",
+          "어떤 Controller가 처리할지 구분하는 설정."
+        ],
+        [
+          "Controller / Proxy",
+          "규칙을 읽고 실제 요청 전달을 구현하는 구성 요소."
+        ]
+      ],
+      "notes": [
+        "Ingress API는 기능 확장이 동결되어 있으며 Gateway API가 확장된 기능을 제공합니다. 기존 서비스에서는 Ingress를 많이 만나므로 YAML을 읽을 수 있어야 합니다.",
+        "특정 Ingress Controller 프로젝트의 지원 상태와 Kubernetes Ingress API 자체를 혼동하지 마세요. 이번 자료는 오래된 Controller를 새로 설치하도록 안내하지 않습니다."
+      ]
+    },
+    {
+      "title": "도메인 없이도 경로 규칙을 읽을 수 있습니다",
+      "lead": "이 예시는 /로 시작하는 요청을 frontend Service의 80번 포트에 연결합니다.",
+      "code": "# 설명용: 이 파일만으로 Controller가 설치되지 않습니다.\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: frontend\n  namespace: study\nspec:\n  ingressClassName: example-controller\n  rules:\n    - http:\n        paths:\n          - path: /\n            pathType: Prefix\n            backend:\n              service:\n                name: frontend\n                port:\n                  number: 80",
+      "file": "ingress-reference.yaml",
+      "notes": [
+        "host를 생략했으므로 특정 도메인만 요구하지 않는 규칙입니다. ingressClassName: example-controller는 설명용 이름입니다. 이 파일은 설치용이 아니며 그대로 apply하는 것을 실습 목표로 삼지 않습니다.",
+        "실제 Controller가 설치된 환경에서는 그 구현체의 IngressClass를 사용해야 합니다. 백엔드 포트는 Pod의 8080이 아니라 Service의 port 80입니다."
+      ]
+    },
+    {
+      "title": "라우팅과 경로 변경은 별개입니다",
+      "lead": "/api 요청을 API Service로 보내도 /api 접두어가 자동 삭제되는 것은 아닙니다.",
+      "cards": [
+        [
+          "라우팅",
+          "어느 백엔드가 받을지 결정합니다."
+        ],
+        [
+          "Rewrite",
+          "백엔드에 전달할 경로 등을 바꾸는 별도 기능입니다."
+        ],
+        [
+          "TLS 종료",
+          "HTTPS를 받은 진입점에서 복호화하는 구성입니다."
+        ]
+      ],
+      "notes": [
+        "API가 /users만 받는데 프록시가 /api/users를 그대로 전달하면 404가 날 수 있습니다. 요청이 전달되지 않은 것과 전달 후 앱이 404를 응답한 것은 다릅니다.",
+        "TLS는 인증서와 신뢰 관계가 필요합니다. 이번에는 인증서 발급 실습 없이 개념만 설명합니다. 외부 HTTPS 종료 뒤 내부 요청도 암호화할지는 별도의 설계입니다."
+      ]
+    },
+    {
+      "title": "FE에서 자주 만나는 두 가지 오류",
+      "lead": "새로고침 404와 CORS 오류는 원인과 확인 위치가 다릅니다.",
+      "cards": [
+        [
+          "SPA 새로고침 404",
+          "/products를 웹 서버가 파일 경로로만 해석하면 발생할 수 있습니다. HTML fallback을 확인합니다."
+        ],
+        [
+          "CORS",
+          "브라우저의 다른 Origin 요청 제약입니다. scheme·host·port 중 하나가 달라도 Origin이 다릅니다."
+        ],
+        [
+          "프록시 연결 실패",
+          "대상 Service·포트·Endpoint·Pod 상태를 확인합니다."
+        ]
+      ],
+      "notes": [
+        "SPA fallback은 API나 실제 정적 파일 오류까지 무조건 index.html로 바꾸지 않도록 서버 설정을 구분해야 합니다.",
+        "localhost:8080 화면에서 localhost:9000 API를 호출하면 다른 Origin입니다. 반면 현재 예제의 fetch(\"/api\")는 같은 Origin으로 요청하고 프록시가 내부 목적지를 선택할 수 있습니다."
+      ]
+    },
+    {
+      "title": "DNS는 정상인데 /api만 404입니다. DNS를 수정할까요?",
+      "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
+      "kind": "CHECK YOUR UNDERSTANDING",
+      "answer": "우선 Host·경로 매칭, 백엔드로 전달되는 실제 경로, 앱이 지원하는 URL을 확인합니다. DNS는 이미 접속할 주소를 알려준 상태이며 경로별 404를 직접 결정하지 않습니다.",
+      "notes": [
+        "토론: 브라우저 개발자 도구에서 상태 코드와 응답 본문을 확인하고, 앱 로그·프록시 로그에서 요청 도착을 확인하는 순서를 설명해 보세요."
+      ]
+    }
+  ]
+}
