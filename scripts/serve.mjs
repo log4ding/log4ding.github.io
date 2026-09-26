@@ -13,4 +13,4 @@ http.createServer(async(req,res)=>{
   res.setHeader('Content-Type',(types[path.extname(file)]||'application/octet-stream')+'; charset=utf-8');
   res.end(await readFile(file));
  } catch {res.writeHead(404);res.end('Not found');}
-}).listen(4173,'127.0.0.1',()=>console.log('Preview: http://127.0.0.1:4173/k8s/'));
+}).listen(Number(process.env.STUDY_PREVIEW_PORT || 4173),'127.0.0.1',()=>console.log('Study preview ready'));

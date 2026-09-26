@@ -1,0 +1,118 @@
+{
+  "id": "A04",
+  "track": "advanced",
+  "short": "Access Log · 헤더",
+  "title": "요청 하나를 로그로 따라가기",
+  "description": "Envoy Gateway 접근 로그에 필요한 헤더만 기록합니다.",
+  "type": "심화 · 개념 + 관찰",
+  "sources": [
+    [
+      "Envoy Gateway 접근 로그",
+      "https://gateway.envoyproxy.io/v1.9/tasks/observability/proxy-accesslog/"
+    ],
+    [
+      "EnvoyProxy 스키마",
+      "https://gateway.envoyproxy.io/v1.9/api/extension_types/"
+    ],
+    [
+      "EnvoyProxy 연결",
+      "https://gateway.envoyproxy.io/v1.9/tasks/operations/customize-envoyproxy/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "앱 로그와 Gateway 접근 로그는 다릅니다",
+      "lead": "컨트롤러 설정 로그까지 세 가지를 구분해야 합니다.",
+      "cards": [
+        [
+          "Controller 로그",
+          "Gateway/HTTPRoute를 읽고 설정을 만드는 과정."
+        ],
+        [
+          "Envoy Proxy 접근 로그",
+          "실제 요청·응답·시간·upstream을 기록."
+        ],
+        [
+          "앱 로그",
+          "핸들러 실행과 업무 처리, 종료 상태를 기록."
+        ]
+      ],
+      "notes": [
+        "kubectl logs deployment/envoy-gateway는 관리 컨트롤러 로그입니다. 요청마다 남는 접근 로그를 보려면 해당 Gateway가 만든 Envoy 프록시 Pod를 찾아야 합니다.",
+        "이 과정은 Envoy Gateway v1.9 구현에 한정한 예제입니다. HTTPRoute 표준 필드에 accessLog를 넣는 방식이 아닙니다. 다른 구현체라면 별도 로그 설정 API와 형식을 확인합니다."
+      ]
+    },
+    {
+      "title": "JSON 접근 로그에 요청 헤더 넣기",
+      "lead": "EnvoyProxy의 telemetry.accessLog로 출력 형식을 정합니다.",
+      "code": "# Envoy Gateway v1.9 extension. Not a standard Gateway API resource.\napiVersion: gateway.envoyproxy.io/v1alpha1\nkind: EnvoyProxy\nmetadata:\n  name: advanced-logging\n  namespace: advanced-study\nspec:\n  telemetry:\n    accessLog:\n      settings:\n        - matches:\n            - \"true\"\n          format:\n            type: JSON\n            json:\n              time: \"%START_TIME%\"\n              method: \"%REQ(:METHOD)%\"\n              path: \"%REQ(:PATH)%\"\n              status: \"%RESPONSE_CODE%\"\n              duration_ms: \"%DURATION%\"\n              upstream: \"%UPSTREAM_HOST%\"\n              response_flags: \"%RESPONSE_FLAGS%\"\n              request_id: \"%REQ(X-REQUEST-ID)%\"\n              study_id: \"%REQ(X-STUDY-ID)%\"\n          sinks:\n            - type: File\n              file:\n                path: /dev/stdout\n",
+      "file": "advanced/access-log.yaml",
+      "notes": [
+        "%REQ(X-STUDY-ID)%는 들어온 요청의 X-Study-Id 헤더를 읽는 Envoy 포맷 연산자입니다. 이 필드를 추가한다고 요청에 헤더가 새로 생기지는 않습니다. 클라이언트가 보내거나 별도 필터가 설정해야 합니다.",
+        "File sink를 /dev/stdout으로 설정해 kubectl logs로 확인합니다. 사용자 정의 settings는 기본 로그 설정을 대체할 수 있으므로 필요한 method·status·duration·upstream 필드를 함께 넣습니다.",
+        "path에는 쿼리 문자열이 포함될 수 있습니다. 이 실습은 비밀 없는 고정 경로만 사용합니다. 운영에서는 쿼리의 민감 값과 Authorization·Cookie·토큰·개인정보를 기록하지 않도록 출력 필드와 보관 정책을 설계하세요."
+      ]
+    },
+    {
+      "title": "이 Gateway에만 로그 설정을 연결합니다",
+      "lead": "기본 과정의 eg GatewayClass 전체를 수정하지 않습니다.",
+      "kind": "LAB",
+      "code": "kubectl apply -f access-log.yaml\nkubectl -n advanced-study patch gateway advanced-gateway --type=merge --patch-file logging-patch.yaml\nkubectl -n advanced-study get gateway advanced-gateway -o yaml\nkubectl -n advanced-study get envoyproxy advanced-logging -o yaml",
+      "file": "advanced/logging-patch.yaml",
+      "notes": [
+        "Gateway의 spec.infrastructure.parametersRef가 같은 Namespace의 EnvoyProxy를 참조합니다. 기본 과정에 사용한 다른 Gateway까지 영향을 주지 않도록 Gateway 수준 연결을 사용합니다.",
+        "Envoy Gateway의 CRD·버전이 이 설정을 지원해야 합니다. Gateway/EnvoyProxy의 상태와 Controller 이벤트를 확인한 뒤 프록시 설정 반영을 기다립니다. 프록시 Pod가 교체되면 포트 포워딩을 다시 열어야 할 수 있습니다."
+      ]
+    },
+    {
+      "title": "헤더를 보내고 양쪽 로그에서 찾기",
+      "lead": "Windows PowerShell에서는 curl 대신 curl.exe를 사용하세요.",
+      "kind": "LAB",
+      "code": "curl -H \"X-Study-Id: lab-42\" http://localhost:18888/api/users\nkubectl -n envoy-gateway-system get pods -l gateway.envoyproxy.io/owning-gateway-namespace=advanced-study,gateway.envoyproxy.io/owning-gateway-name=advanced-gateway\n# 위 출력의 실제 Pod 이름 사용\nkubectl -n envoy-gateway-system logs PROXY_POD_NAME -c envoy --since=5m\nkubectl -n advanced-study logs -l app=advanced-api --all-containers=true --prefix=true --since=5m",
+      "notes": [
+        "Proxy의 study_id와 앱 로그의 study_id에서 lab-42를 찾습니다. 앱 로그에는 path·version·Pod 정보가 있으므로 요청이 어느 버전으로 전달됐는지도 연결할 수 있습니다.",
+        "X-Request-ID는 프록시 정책에 따라 생성·정규화될 수 있습니다. 이번 실습은 제어 가능한 X-Study-Id를 상관관계 확인에 사용합니다. 클라이언트가 입력하는 헤더는 인증된 사용자 식별자가 아니며 신뢰하면 안 됩니다."
+      ],
+      "expected": "JSON 접근 로그와 앱 로그에서 lab-42를 찾아 같은 요청의 경로를 설명할 수 있습니다.",
+      "trouble": "envoy 컨테이너 이름이 다르면 kubectl get pod PROXY_POD_NAME -o yaml로 확인합니다. 실제 프록시 Pod인지, 로그 연결 참조가 올바른지, 새 요청을 보냈는지 확인하세요."
+    },
+    {
+      "title": "404·503 하나만 보고 원인을 단정하지 않습니다",
+      "lead": "응답 코드와 upstream, response_flags, 앱 로그를 함께 읽습니다.",
+      "table": {
+        "headers": [
+          "관찰",
+          "추가 확인",
+          "가능한 원인"
+        ],
+        "rows": [
+          [
+            "upstream 없이 404",
+            "Host·경로·Accepted 상태",
+            "Route 매칭 문제 등"
+          ],
+          [
+            "upstream과 앱의 404 로그",
+            "앱이 실제 받은 path",
+            "Rewrite 또는 앱 경로 문제"
+          ],
+          [
+            "upstream 연결 실패·503 등",
+            "EndpointSlice·Readiness·대상 포트",
+            "준비된 대상 없음 또는 연결 실패"
+          ]
+        ]
+      },
+      "notes": [
+        "표는 진단 시작점이지 상태 코드의 보편적인 일대일 대응표가 아닙니다. 프록시 버전·정책·필터에 따라 응답이 달라질 수 있습니다.",
+        "실험: 헤더 없이 한 번, lab-42를 넣고 한 번 요청해 결과를 비교합니다. 누락된 헤더는 형식에 따라 - 또는 빈 값 등으로 보일 수 있습니다. JSON 구조를 유지하면 제어문자와 구분자 문제를 줄일 수 있지만 민감 정보 수집 문제까지 해결되지는 않습니다."
+      ]
+    },
+    {
+      "title": "X-Study-Id를 로그에 남겼으면 사용자 인증에도 써도 될까요?",
+      "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+      "kind": "CHECK",
+      "answer": "아닙니다. 클라이언트가 바꿀 수 있는 상관관계용 값입니다. 요청을 연결해 찾는 용도와 인증·권한 판단은 별도입니다."
+    }
+  ]
+}

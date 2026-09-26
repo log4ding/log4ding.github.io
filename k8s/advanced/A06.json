@@ -1,0 +1,169 @@
+{
+  "id": "A06",
+  "track": "advanced",
+  "short": "Zone · Region 장애 전환",
+  "title": "가까운 대상으로, 살아 있는 Region으로",
+  "description": "Service 위치 선호와 글로벌 장애 전환을 구분합니다.",
+  "type": "심화 · 개념 + 관찰",
+  "sources": [
+    [
+      "Service 트래픽 정책",
+      "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+    ],
+    [
+      "여러 Zone에서 실행",
+      "https://kubernetes.io/docs/setup/best-practices/multiple-zones/"
+    ],
+    [
+      "글로벌 라우팅과 새 연결",
+      "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+    ],
+    [
+      "비정상 Endpoint의 failover",
+      "https://docs.aws.amazon.com/global-accelerator/latest/dg/about-endpoints-endpoint-weights.unhealthy-endpoints.html"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "세 범위를 먼저 나눕니다",
+      "lead": "Node·Zone·Region은 같은 단위가 아닙니다.",
+      "cards": [
+        [
+          "Node",
+          "Pod가 실행되는 컴퓨터."
+        ],
+        [
+          "Zone",
+          "Region 안의 장애 격리 구역. 하나의 클러스터가 여러 Zone에 걸칠 수 있습니다."
+        ],
+        [
+          "Region",
+          "지역 단위. 이 예시는 Region마다 별도 클러스터가 있다고 가정합니다."
+        ]
+      ],
+      "notes": [
+        "두 Region에 각각 Ingress·Service·Deployment를 두는 구성에서도 진입점 선택과 장애 전환은 별도 계층이 담당합니다. trafficDistribution은 이 두 클러스터를 자동으로 연결하는 기능이 아닙니다.",
+        "Deployment와 ReplicaSet은 요청 경로의 홉이 아닙니다. Region A의 Ingress/Gateway → Service 대상 → Pod로 요청이 흐르고, Deployment는 Pod들을 관리합니다."
+      ]
+    },
+    {
+      "title": "두 Region에 각각 구성해도 남는 운영 과제",
+      "lead": "Region A와 B에 Ingress → Service → Pod가 각각 있는 구성을 비교합니다.",
+      "cards": [
+        [
+          "Region A",
+          "Ingress A → Service A → Pod A (Deployment A가 관리)"
+        ],
+        [
+          "Region B",
+          "Ingress B → Service B → Pod B (Deployment B가 관리)"
+        ]
+      ],
+      "table": {
+        "headers": [
+          "두 Region 구성의 운영 과제",
+          "왜 별도 설계가 필요한가"
+        ],
+        "rows": [
+          [
+            "진입점 선택",
+            "각 Ingress는 자기 클러스터의 경로를 처리합니다. 사용자 요청을 어느 Region으로 보낼지는 상위 계층에서 정합니다."
+          ],
+          [
+            "장애 전환",
+            "A의 Service가 B 클러스터의 같은 이름 Service를 자동으로 찾아주지는 않습니다. 글로벌 상태 확인과 전환 정책이 필요합니다."
+          ],
+          [
+            "설정·배포 일치",
+            "Ingress 경로, 인증서, Service 포트, 앱 버전이 두 Region에서 달라지지 않게 관리해야 합니다."
+          ],
+          [
+            "용량·데이터",
+            "B가 A의 부하까지 받을 용량과 데이터·세션 접근성을 준비해야 합니다."
+          ],
+          [
+            "전환 중 요청",
+            "감지 지연, DNS 캐시(사용 시), 기존 연결 종료와 재시도를 고려합니다."
+          ]
+        ]
+      },
+      "notes": [
+        "두 Region에 배포하면 지역 장애를 분리할 기반이 생깁니다. 다만 자원 두 벌을 만드는 것만으로 자동 장애 전환이 완성되지는 않습니다. 이 설명은 Region마다 독립 클러스터가 있는 구성을 기준으로 합니다.",
+        "trafficDistribution 이전에도 이런 멀티 Region 구성은 가능했습니다. trafficDistribution을 추가해도 글로벌 라우팅, 설정 동기화, 데이터 복제 문제가 한꺼번에 해결되지는 않습니다. 같은 Service의 Endpoint 위치 선호와 Region 선택은 별도의 범위입니다.",
+        "Deployment는 요청이 통과하는 네트워크 장비가 아니라 Pod를 관리하는 리소스입니다. 그림에서는 요청 경로와 관리 관계를 구분합니다."
+      ],
+      "sources": [
+        [
+          "Service 트래픽 정책",
+          "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+        ],
+        [
+          "글로벌 라우팅의 역할",
+          "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+        ]
+      ]
+    },
+    {
+      "title": "Service 안에서 가까운 Endpoint 선호",
+      "lead": "같은 클러스터의 Service가 다른 Zone의 준비된 Endpoint도 가지고 있다고 가정합니다.",
+      "networkAnimation": "zone",
+      "notes": [
+        "재생을 누르면 Zone A의 호출자가 정상 상태에서 같은 Zone의 Endpoint를 선호합니다. Zone A 대상 장애를 누르면 감지·Endpoint 반영 전 실패와 이후 Zone B fallback을 비교합니다.",
+        "이 시뮬레이션은 호출자가 살아 있고 Zone A의 대상만 사용할 수 없어진 상황입니다. 호출자까지 사라지는 전체 Zone 장애와 다릅니다. internalTrafficPolicy=Local 같은 엄격한 제한이 없고, 프록시가 위치 선호를 지원하며 Zone B에 준비된 대상이 있다고 가정합니다.",
+        "점 하나는 관찰하기 쉽게 만든 한 번의 요청 시도입니다. 실제 Service 데이터 경로는 연결 단위 선택·연결 재사용 등 구현 차이가 있습니다. 시간과 분산 비율은 실측값이 아닙니다."
+      ]
+    },
+    {
+      "title": "Region 장애는 글로벌 진입점에서 전환",
+      "lead": "지역별 클러스터 바깥의 라우팅 계층이 살아 있는 Region을 선택합니다.",
+      "networkAnimation": "region",
+      "notes": [
+        "정상 상태는 두 Region으로 요청을 나누는 개념 예시입니다. Region A 장애 버튼을 누르면 감지 전의 실패를 먼저 보여주고, 글로벌 헬스 체크 반영 후 새 요청이 B로 가는 흐름을 보여줍니다. 균등 비율은 설명용이며 실제 정책·지연·용량에 따라 달라집니다.",
+        "이 동작은 Service trafficDistribution이 제공하는 멀티 Region 전환이 아닙니다. 글로벌 로드밸런서 또는 DNS 기반 전환 등 별도 구성이 필요합니다. DNS 방식이라면 TTL·캐시가 추가로 작용합니다.",
+        "기존 TCP 연결이나 이미 전송 중인 요청이 자동으로 B에 옮겨지는 것은 아닙니다. 안전한 GET 재시도를 켜면 실패한 논리 요청을 B에서 다시 처리하는 경로를 볼 수 있습니다. 실패 시도 기록은 성공 후에도 남깁니다."
+      ]
+    },
+    {
+      "title": "전환 이후 서비스가 가능하려면",
+      "lead": "트래픽의 목적지만 바꿔서는 데이터와 상태가 따라오지 않습니다.",
+      "table": {
+        "headers": [
+          "조건",
+          "확인할 내용"
+        ],
+        "rows": [
+          [
+            "B Region 용량",
+            "A에서 넘어온 트래픽을 처리할 준비·여유 용량"
+          ],
+          [
+            "데이터",
+            "복제 지연·쓰기 일관성·복구 가능한 데이터 시점"
+          ],
+          [
+            "세션·파일",
+            "Pod 메모리에만 있는 세션, 업로드 파일의 접근 가능성"
+          ],
+          [
+            "재시도",
+            "멱등성·중복 제거·시간 제한·재연결"
+          ],
+          [
+            "관측",
+            "감지 지연·전환 시간·실패율·최종 처리 결과"
+          ]
+        ]
+      },
+      "notes": [
+        "유실을 줄이는 목표를 세울 수 있지만 장애 감지 전과 진행 중 요청의 실패를 항상 0으로 만들 수 있다고 단정하지 않습니다. 처리 완료를 보장하려면 큐·저장·재시도·멱등성 같은 애플리케이션 수준 설계까지 필요합니다.",
+        "Region B도 비정상이면 이 그림의 전제 자체가 깨집니다. 실제 글로벌 제품의 fail-open/동시 장애 동작은 해당 서비스 문서를 확인하세요. 이 예시는 정상 B가 있는 상황에만 한정합니다."
+      ]
+    },
+    {
+      "title": "두 Region에 각각 배포하고 trafficDistribution을 넣으면 자동으로 Region 장애에 견디나요?",
+      "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+      "kind": "CHECK",
+      "answer": "아닙니다. 다른 Region의 서비스·데이터·용량과 글로벌 진입점의 상태 확인·전환 정책이 필요합니다. trafficDistribution은 같은 Service가 사용할 수 있는 Endpoint 중 위치 선호를 표현합니다."
+    }
+  ]
+}

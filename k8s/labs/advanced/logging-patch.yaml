@@ -1,0 +1,7 @@
+# Gateway merge patch. The referenced EnvoyProxy is in the same namespace.
+spec:
+  infrastructure:
+    parametersRef:
+      group: gateway.envoyproxy.io
+      kind: EnvoyProxy
+      name: advanced-logging

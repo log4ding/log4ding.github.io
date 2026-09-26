@@ -96,6 +96,29 @@
       "trouble": "404면 HTTPRoute 연결과 경로를, 503 등 업스트림 오류면 Service·EndpointSlice·Pod readiness를 확인합니다. 아직 Envoy Service가 없다면 Controller 로그와 Gateway 상태를 확인합니다."
     },
     {
+      "title": "Gateway API에서 도메인과 HTTPS 연결하기",
+      "lead": "Listener와 HTTPRoute의 호스트가 함께 맞아야 합니다.",
+      "kind": "READ & UNDERSTAND",
+      "code": "# 설명용: eg GatewayClass 및 같은 Namespace의 TLS Secret이 필요합니다.\napiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata:\n  name: domain-gateway-example\n  namespace: study\nspec:\n  gatewayClassName: eg\n  listeners:\n    - name: https\n      hostname: app.example.com\n      port: 443\n      protocol: HTTPS\n      tls:\n        mode: Terminate\n        certificateRefs:\n          - kind: Secret\n            name: app-example-com-tls\n      allowedRoutes:\n        namespaces:\n          from: Same\n---\napiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: frontend-domain-example\n  namespace: study\nspec:\n  parentRefs:\n    - name: domain-gateway-example\n      sectionName: https\n  hostnames:\n    - app.example.com\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80\n",
+      "file": "gateway-domain-reference.yaml",
+      "notes": [
+        "DNS는 외부 Gateway 진입점으로 매핑된다고 가정합니다. Listener의 hostname은 이 입구가 처리할 호스트 범위를 정합니다. HTTPRoute의 hostnames는 Route가 처리할 호스트를 정하고, parentRefs와 sectionName은 이 HTTPS Listener에 연결합니다.",
+        "같은 app.example.com을 지정해 관계를 명확히 했습니다. Listener와 Route의 호스트 조건이 호환되지 않으면 요청이 예상한 Route에 붙지 않습니다. Accepted·ResolvedRefs 상태도 확인합니다.",
+        "TLS mode: Terminate는 진입점에서 HTTPS를 복호화하는 구성입니다. certificateRefs의 Secret은 같은 study Namespace에 미리 준비되어 있고 app.example.com에 유효해야 합니다. 여기서는 뒤의 Service 80번 포트까지 HTTP로 연결하는 예입니다. 인증서 자동 발급이나 백엔드 TLS까지 자동 설정하지 않습니다.",
+        "이 예제는 7주차 실습의 gateway.yaml·route.yaml을 대체해 실행하는 과제가 아닙니다. 별도 설명용 파일이며 수업 접속은 기존 localhost:8888을 유지합니다."
+      ],
+      "sources": [
+        [
+          "HTTPRoute",
+          "https://gateway-api.sigs.k8s.io/guides/user-guides/http-routing/"
+        ],
+        [
+          "Gateway TLS 설정",
+          "https://gateway-api.sigs.k8s.io/guides/user-guides/tls/"
+        ]
+      ]
+    },
+    {
       "title": "HTTPRoute에 적는 80은 Pod 포트인가요?",
       "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
       "kind": "CHECK YOUR UNDERSTANDING",

@@ -1,0 +1,111 @@
+{
+  "id": "A03",
+  "track": "advanced",
+  "short": "Gateway 경로 분리",
+  "title": "/는 FE, /api는 API로",
+  "description": "Ingress의 경로 매핑을 HTTPRoute에서 직접 구성합니다.",
+  "type": "심화 · 개념 + 관찰",
+  "sources": [
+    [
+      "HTTPRoute 규칙",
+      "https://gateway-api.sigs.k8s.io/guides/user-guides/http-routing/"
+    ],
+    [
+      "Envoy Gateway URL Rewrite",
+      "https://gateway.envoyproxy.io/v1.9/tasks/traffic/http-urlrewrite/"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "Ingress에서 하던 경로 분리를 옮기면",
+      "lead": "HTTPRoute의 각 rule에 경로 조건과 Service 목적지를 함께 적습니다.",
+      "table": {
+        "headers": [
+          "요청",
+          "일치 조건",
+          "목적지"
+        ],
+        "rows": [
+          [
+            "/",
+            "PathPrefix /",
+            "frontend:80"
+          ],
+          [
+            "/assets/app.js",
+            "PathPrefix /",
+            "frontend:80 (앱이 파일을 제공해야 함)"
+          ],
+          [
+            "/api/users",
+            "PathPrefix /api",
+            "api:80"
+          ],
+          [
+            "/apix",
+            "/api 조건과 불일치 → /",
+            "frontend:80"
+          ]
+        ]
+      },
+      "notes": [
+        "FE용 Service와 API용 Service를 별도로 둡니다. 브라우저는 같은 localhost:18888에 접속하고 API 버튼은 상대 경로 /api/users를 사용합니다. 브라우저 입장에서는 같은 Origin입니다.",
+        "더 긴 PathPrefix가 더 구체적인 경로로 선택됩니다. /api가 /보다 우선하는 이유는 YAML에서 먼저 적었기 때문만은 아닙니다. /api는 경로 요소 단위로 매칭되므로 /apix까지 포함하지 않습니다."
+      ]
+    },
+    {
+      "title": "두 Service로 나누는 전체 HTTPRoute",
+      "lead": "외부 도메인 조건 없이 Gateway에 연결합니다.",
+      "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: app\n  namespace: advanced-study\nspec:\n  parentRefs:\n    - name: advanced-gateway\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /api\n      backendRefs:\n        - name: api\n          port: 80\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80\n",
+      "file": "advanced/route.yaml",
+      "notes": [
+        "parentRefs는 advanced-gateway Listener에 붙입니다. 각 rules 항목의 matches는 요청 조건, backendRefs는 선택된 Service를 뜻합니다. 같은 rule 안 여러 match 항목은 대안(OR)이고 한 match의 path·method·headers 조건은 함께 만족해야 합니다.",
+        "backendRefs.port는 컨테이너 8080이 아니라 Service의 80입니다. 이 예제는 Route와 Service가 같은 advanced-study Namespace에 있으며 다른 Namespace 참조는 ReferenceGrant 같은 추가 설정이 필요합니다."
+      ]
+    },
+    {
+      "title": "프런트엔드와 API가 정말 분리되는지 확인",
+      "lead": "A01의 두 Deployment·Service와 기본 과정의 eg GatewayClass가 필요합니다.",
+      "kind": "LAB",
+      "code": "kubectl apply -f gateway.yaml\nkubectl apply -f route.yaml\nkubectl -n advanced-study describe httproute app\nkubectl -n envoy-gateway-system get svc -l gateway.envoyproxy.io/owning-gateway-namespace=advanced-study,gateway.envoyproxy.io/owning-gateway-name=advanced-gateway\n# 위 출력의 실제 프록시 Service 이름으로 교체\nkubectl -n envoy-gateway-system port-forward svc/ENVOY_SERVICE_NAME 18888:80",
+      "file": "advanced/gateway.yaml",
+      "notes": [
+        "localhost:18888에서 FE 화면을 열고 API 호출 버튼을 누릅니다. 응답의 role이 api인지 확인하세요. 브라우저 주소가 바뀌지 않아도 내부 서비스는 다를 수 있습니다.",
+        "localhost:18888/apix는 frontend로 전달되지만 이 단순 샘플 앱에 해당 화면이 없어서 404를 반환합니다. 목적지 선택과 목적지 앱의 응답 코드를 구분하는 실험입니다."
+      ],
+      "expected": "/는 HTML, /api/users는 role: api·path: /api/users인 JSON을 반환합니다."
+    },
+    {
+      "title": "Rewrite를 설정해야 경로가 바뀝니다",
+      "lead": "API가 /users만 처리한다면 /api 접두어를 제거하도록 명시합니다.",
+      "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: app\n  namespace: advanced-study\nspec:\n  parentRefs:\n    - name: advanced-gateway\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /api\n      filters:\n        - type: URLRewrite\n          urlRewrite:\n            path:\n              type: ReplacePrefixMatch\n              replacePrefixMatch: /\n      backendRefs:\n        - name: api\n          port: 80\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80",
+      "file": "advanced/route-rewrite.yaml",
+      "notes": [
+        "kubectl apply -f route-rewrite.yaml을 적용하면 같은 HTTPRoute app이 바뀝니다. ReplacePrefixMatch로 /api/users를 /users로 전달합니다. 브라우저에는 /api/users가 남습니다. HTTP redirect가 아니라 내부 전달 경로 변경입니다.",
+        "우리 샘플 API는 두 경로를 모두 구현해서 응답의 path가 어떻게 바뀌는지 비교할 수 있습니다. 실제 API가 어느 경로를 받는지 먼저 확인하고 Rewrite 여부를 선택합니다.",
+        "테스트 후 kubectl apply -f route.yaml로 원래 설정을 복원합니다. URLRewrite와 RequestRedirect 같은 필터는 조합 제한과 구현별 지원을 확인해야 합니다."
+      ]
+    },
+    {
+      "title": "라우팅 규칙을 읽는 순서",
+      "lead": "붙일 입구 → 요청 조건 → 필터 → 목적지 → 적용 상태 순으로 점검합니다.",
+      "flow": [
+        "parentRefs",
+        "matches",
+        "filters",
+        "backendRefs",
+        "Accepted / ResolvedRefs"
+      ],
+      "notes": [
+        "hostnames가 있으면 접속 호스트 조건도 일치해야 합니다. Service 이름 오타는 ResolvedRefs, Gateway에 붙을 수 있는지 여부는 Accepted 같은 상태와 이벤트를 확인합니다.",
+        "UI에서 404가 나면 앱이 만든 404인지 Gateway에서 일치하는 Route가 없는지 구분해야 합니다. 다음 챕터의 접근 로그에서 upstream과 status를 함께 보면 원인 범위를 좁힐 수 있습니다."
+      ]
+    },
+    {
+      "title": "GET /api/users는 / 규칙에도 맞는데 왜 API로 가나요?",
+      "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+      "kind": "CHECK",
+      "answer": "PathPrefix 매칭에서는 더 긴 /api 경로가 /보다 구체적이기 때문입니다. 같은 구체성의 복잡한 규칙에는 추가 우선순위가 있으므로 단순히 위에서부터 첫 줄을 고르는 규칙으로 이해하지 않습니다."
+    }
+  ]
+}

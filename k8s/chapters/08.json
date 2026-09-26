@@ -52,6 +52,78 @@
       "callout": "Pod를 어느 Node에 배치할지 정하는 스케줄링 설정도 아닙니다."
     },
     {
+      "title": "두 Region에 각각 구성해도 남는 운영 과제",
+      "lead": "Region A와 B에 Ingress → Service → Pod가 각각 있는 구성을 비교합니다.",
+      "cards": [
+        [
+          "Region A",
+          "Ingress A → Service A → Pod A (Deployment A가 관리)"
+        ],
+        [
+          "Region B",
+          "Ingress B → Service B → Pod B (Deployment B가 관리)"
+        ]
+      ],
+      "table": {
+        "headers": [
+          "두 Region 구성의 운영 과제",
+          "왜 별도 설계가 필요한가"
+        ],
+        "rows": [
+          [
+            "진입점 선택",
+            "각 Ingress는 자기 클러스터의 경로를 처리합니다. 사용자 요청을 어느 Region으로 보낼지는 상위 계층에서 정합니다."
+          ],
+          [
+            "장애 전환",
+            "A의 Service가 B 클러스터의 같은 이름 Service를 자동으로 찾아주지는 않습니다. 글로벌 상태 확인과 전환 정책이 필요합니다."
+          ],
+          [
+            "설정·배포 일치",
+            "Ingress 경로, 인증서, Service 포트, 앱 버전이 두 Region에서 달라지지 않게 관리해야 합니다."
+          ],
+          [
+            "용량·데이터",
+            "B가 A의 부하까지 받을 용량과 데이터·세션 접근성을 준비해야 합니다."
+          ],
+          [
+            "전환 중 요청",
+            "감지 지연, DNS 캐시(사용 시), 기존 연결 종료와 재시도를 고려합니다."
+          ]
+        ]
+      },
+      "notes": [
+        "두 Region에 배포하면 지역 장애를 분리할 기반이 생깁니다. 다만 자원 두 벌을 만드는 것만으로 자동 장애 전환이 완성되지는 않습니다. 이 설명은 Region마다 독립 클러스터가 있는 구성을 기준으로 합니다.",
+        "trafficDistribution 이전에도 이런 멀티 Region 구성은 가능했습니다. trafficDistribution을 추가해도 글로벌 라우팅, 설정 동기화, 데이터 복제 문제가 한꺼번에 해결되지는 않습니다. 같은 Service의 Endpoint 위치 선호와 Region 선택은 별도의 범위입니다.",
+        "Deployment는 요청이 통과하는 네트워크 장비가 아니라 Pod를 관리하는 리소스입니다. 그림에서는 요청 경로와 관리 관계를 구분합니다."
+      ],
+      "sources": [
+        [
+          "Service 트래픽 정책",
+          "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+        ],
+        [
+          "글로벌 라우팅의 역할",
+          "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+        ]
+      ]
+    },
+    {
+      "title": "애니메이션: 정상 선택과 Zone 대상 장애",
+      "lead": "Service 위치 선호의 범위를 직접 재생해 보세요.",
+      "networkAnimation": "zone",
+      "notes": [
+        "이 그림은 같은 클러스터 안의 Zone A 호출자가 살아 있으며, Zone A의 서비스 대상만 실패한 경우입니다. 감지·전파 지연 이후 준비된 Zone B Endpoint로 fallback하는 개념 흐름입니다.",
+        "엄격한 Local 정책이 없다는 전제입니다. Region 장애 전환 그림은 심화 A06에서 글로벌 진입점과 데이터·재시도 조건을 함께 설명합니다."
+      ],
+      "sources": [
+        [
+          "Service 트래픽 정책",
+          "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+        ]
+      ]
+    },
+    {
       "title": "v1과 v2를 별도 대상으로 준비합니다",
       "lead": "같은 코드 이미지의 APP_VERSION만 달리해 라우팅 관찰용 v2를 만듭니다.",
       "kind": "LAB",
@@ -91,6 +163,99 @@
       "kind": "CHECK YOUR UNDERSTANDING",
       "answer": "아닙니다. Gateway가 Service 간 요청 비율을 선택한 뒤 각 Service의 Endpoint로 전달합니다. Pod 개수와 Service 간 가중치는 다른 설정입니다. 단, 실제 처리 용량은 Pod 개수와 자원에 영향을 받습니다.",
       "notes": []
+    },
+    {
+      "title": "중간 과제 2 · 두 버전으로 트래픽 나누기",
+      "lead": "Gateway API의 연결 관계와 90:10 가중치를 직접 설계합니다.",
+      "kind": "ASSIGNMENT · 120분",
+      "bullets": [
+        "v1·v2 Deployment와 Service를 각각 만드세요. Pod 라벨을 분리하여 두 Service의 대상이 겹치지 않게 합니다.",
+        "hw2에 Gateway와 HTTPRoute를 작성하세요. 도메인 조건 없이 /api가 두 Service로 분할되도록 합니다.",
+        "해당 Gateway가 생성한 Envoy 프록시 Service를 찾아 localhost:18888로 포워딩하세요. 다른 Gateway의 Service를 선택하지 않게 Namespace 라벨도 확인하세요."
+      ],
+      "callout": "120분 · 상세 요구사항·시간 배분·제출물·평가 기준은 아래 과제 안내에서 확인하세요.",
+      "notes": [
+        "정답 YAML을 그대로 복사하기보다 본인의 이름·라벨·포트를 정하고 관찰 결과로 설명하는 과제입니다. 막히면 아래 힌트를 열어 보세요."
+      ],
+      "assignment": {
+        "chapter": "08",
+        "id": "midterm-2",
+        "title": "중간 과제 2 · 두 버전으로 트래픽 나누기",
+        "duration": "120분",
+        "lead": "Gateway API의 연결 관계와 90:10 가중치를 직접 설계합니다.",
+        "prerequisites": [
+          "7~8주차 완료. Envoy Gateway 설치와 localhost 접속을 사전 확인합니다. 설치 시간은 과제 시간에서 제외합니다.",
+          "hw2 Namespace를 만들고 기존 eg GatewayClass를 재사용합니다. fe-study:v1 이미지를 이용해 APP_VERSION만 v1/v2로 다르게 설정해도 됩니다."
+        ],
+        "requirements": [
+          "v1·v2 Deployment와 Service를 각각 만드세요. Pod 라벨을 분리하여 두 Service의 대상이 겹치지 않게 합니다.",
+          "hw2에 Gateway와 HTTPRoute를 작성하세요. 도메인 조건 없이 /api가 두 Service로 분할되도록 합니다.",
+          "해당 Gateway가 생성한 Envoy 프록시 Service를 찾아 localhost:18888로 포워딩하세요. 다른 Gateway의 Service를 선택하지 않게 Namespace 라벨도 확인하세요.",
+          "90:10으로 100회 이상 호출해 버전별 건수를 표로 기록하세요. 50:50으로 변경해 같은 방식으로 비교하세요.",
+          "backendRefs의 이름 하나를 존재하지 않는 Service로 바꿔 ResolvedRefs·응답 변화를 관찰하고 복구하세요. 정확한 오류 상태 코드를 미리 정답으로 가정하지 마세요.",
+          "설명 문제: Service trafficDistribution과 HTTPRoute weight의 차이를 5문장 이내로 쓰세요. DNS A 레코드와 HTTPRoute hostnames를 맞추는 가상 예시만 제출하세요."
+        ],
+        "schedule": [
+          [
+            "0~15분",
+            "라벨·리소스 이름·연결 관계 설계"
+          ],
+          [
+            "15~45분",
+            "두 버전과 Service 구성"
+          ],
+          [
+            "45~70분",
+            "Gateway·HTTPRoute·포트 포워딩 연결"
+          ],
+          [
+            "70~95분",
+            "가중치 두 종류의 호출 결과 수집"
+          ],
+          [
+            "95~110분",
+            "참조 오류 관찰 및 복구"
+          ],
+          [
+            "110~120분",
+            "결과표와 개념 비교 작성"
+          ]
+        ],
+        "deliverables": [
+          "hw2 전체 YAML과 90:10·50:50 설정 파일 또는 변경 이력",
+          "REPORT.md: 호출 수, v1/v2 관측 수, 실제 비율, 오차 해석",
+          "정상·비정상 HTTPRoute 상태 증거, 장애 복원 과정, DNS/hostnames 예시"
+        ],
+        "criteria": [
+          [
+            "라우팅 구성",
+            "30점",
+            "Namespace·parentRefs·Service 참조가 맞고 /api 응답 성공"
+          ],
+          [
+            "분할 관찰",
+            "30점",
+            "각 설정 100회 이상, 버전별 집계와 오차 설명"
+          ],
+          [
+            "장애 진단",
+            "20점",
+            "ResolvedRefs 확인과 올바른 참조 복원"
+          ],
+          [
+            "개념 구분",
+            "20점",
+            "위치 선호와 가중치, DNS와 HTTP 라우팅 구분"
+          ]
+        ],
+        "hints": [
+          "Service 직접 포트 포워딩이 아니라 Envoy 프록시 Service를 포워딩해야 Gateway의 분할을 지나갑니다.",
+          "프록시 Service 조회 시 gateway.envoyproxy.io/owning-gateway-namespace=hw2 라벨도 사용하세요.",
+          "100회 중 정확히 10회가 v2여야 통과하는 과제가 아닙니다. 표본 오차와 실행한 HTTPRoute 설정을 함께 설명하세요.",
+          "Service 참조가 잘못된 가중치 대상이 있으면 일부 요청이 실패할 수도 있습니다. Route 상태와 요청 결과를 모두 수집하세요."
+        ],
+        "check": "완료 기준: 두 가중치 설정의 관측 결과와 설명, 참조 오류의 원인·복구 증거를 제출합니다. 최종 라우팅은 정상 90:10으로 복원하고 포트 포워딩을 종료합니다."
+      }
     }
   ]
 }

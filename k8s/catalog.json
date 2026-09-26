@@ -104,6 +104,149 @@
         ]
       },
       {
+        "title": "네 가지 리소스가 필요한 이유부터",
+        "lead": "상품 목록 FE를 서비스한다고 가정해, 운영 중 생기는 질문을 하나씩 풀어봅니다.",
+        "kind": "READ & UNDERSTAND",
+        "cards": [
+          [
+            "앱을 유지하기",
+            "Pod 하나가 사라지면 누가 다시 만들까요? → ReplicaSet"
+          ],
+          [
+            "버전을 바꾸기",
+            "v1에서 v2로 어떻게 교체할까요? → Deployment"
+          ],
+          [
+            "앱을 찾아가기",
+            "바뀌는 Pod 주소와 외부 요청은 어떻게 연결할까요? → Service + Ingress"
+          ]
+        ],
+        "notes": [
+          "처음에는 노트북에서 서버를 하나 실행하면 화면이 보입니다. 그런데 서버 프로세스가 종료되면 다시 켜야 하고, 사용자가 많아지면 같은 앱을 여러 개 실행해야 합니다. 앱을 여러 개로 늘리면 이번에는 “어느 앱에 요청을 보낼까?”라는 문제가 생깁니다. 이 서로 다른 문제를 나눠 해결하는 것이 이번에 배울 네 가지 리소스입니다.",
+          "Pod는 앱을 실행하는 자리입니다. ReplicaSet은 같은 역할의 Pod 수를 유지하고, Deployment는 새 버전의 Pod를 어떤 템플릿으로 교체할지 관리합니다. Service는 대상 Pod를 찾을 수 있는 접점을 제공하고, Ingress는 외부에서 들어온 HTTP 요청을 어느 Service로 보낼지 표현합니다.",
+          "네 가지 리소스가 반드시 일렬로 요청을 받는 것은 아닙니다. 배포를 관리하는 두 리소스와 요청을 연결하는 두 리소스를 별개의 관계로 이해하면 뒤의 YAML이 훨씬 쉽게 읽힙니다."
+        ],
+        "sources": [
+          [
+            "Controller의 동작",
+            "https://kubernetes.io/docs/concepts/architecture/controller/"
+          ],
+          [
+            "Service로 앱 연결하기",
+            "https://kubernetes.io/docs/tutorials/services/connect-applications-service/"
+          ]
+        ]
+      },
+      {
+        "title": "Deployment: 앱의 실행 계획서",
+        "lead": "“어떤 앱을 몇 개 실행하고, 새 설정을 어떻게 반영할지”를 선언합니다.",
+        "kind": "READ & UNDERSTAND",
+        "flow": [
+          "v1 실행 계획",
+          "템플릿을 v2로 변경",
+          "새 ReplicaSet 준비",
+          "기존·신규 Pod 교체"
+        ],
+        "bullets": [
+          "image: 실행 재료가 되는 컨테이너 이미지",
+          "replicas: 원하는 Pod 개수",
+          "template: 새 Pod를 만들 때 사용하는 양식"
+        ],
+        "notes": [
+          "상품 목록 앱이 fe-study:v1 이미지로 3개 실행 중이라고 합시다. Deployment에는 이 이미지와 복제 개수, 환경 변수, 컨테이너 포트 같은 실행 계획이 들어 있습니다. kubectl apply는 이 선언을 Kubernetes API 서버에 전달합니다. Deployment 자체가 화면 HTML을 응답하는 서버는 아닙니다.",
+          "다음 주에 코드를 수정해 v2 이미지를 만들었다면 Deployment의 Pod 템플릿에 적힌 이미지도 v2로 바꿉니다. 그러면 컨트롤러가 새 템플릿을 위한 ReplicaSet을 만들거나 재사용해 새 Pod를 준비합니다. 기존 Pod의 내부 파일을 직접 편집하는 방식과 다릅니다.",
+          "복제 개수만 3에서 5로 바꾸는 것은 확장입니다. 이미지·환경 변수처럼 Pod 템플릿을 바꾸는 것은 새 Rollout을 일으킵니다. 이 차이는 4주차에서 실제 ReplicaSet 목록으로 확인합니다.",
+          "스스로 설명하기: “Deployment를 수정했는데 왜 새 Pod 이름이 생길까?”에 답해 보세요. 원하는 상태를 선언하고 컨트롤러가 실행 상태를 맞추기 때문입니다."
+        ],
+        "sources": [
+          [
+            "Deployment",
+            "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+          ],
+          [
+            "Controller의 동작",
+            "https://kubernetes.io/docs/concepts/architecture/controller/"
+          ]
+        ]
+      },
+      {
+        "title": "ReplicaSet: 원하는 Pod 수를 맞추는 관리자",
+        "lead": "“frontend 역할의 Pod가 3개 있어야 한다”는 상태를 유지합니다.",
+        "kind": "READ & UNDERSTAND",
+        "flow": [
+          "원하는 수: 3",
+          "현재 수: 2",
+          "새 Pod 1개 생성",
+          "다시 3개"
+        ],
+        "notes": [
+          "Pod 하나를 삭제했다고 해서 기존 Pod가 되살아나는 것은 아닙니다. ReplicaSet 컨트롤러는 부족한 수를 확인하고 새 Pod를 만듭니다. 새 Pod는 새로운 식별자를 가지며 주소도 달라질 수 있습니다. 애플리케이션이 Pod의 이름이나 IP를 영구 식별자로 가정하면 안 되는 이유입니다.",
+          "ReplicaSet은 라벨 조건인 selector로 자신이 관리할 대상을 식별합니다. “replicas: 3”이라는 숫자만 있는 것이 아니라 “어떤 Pod 3개인가”도 필요합니다. 다만 실제 소유 관계는 ownerReferences에서도 확인할 수 있고, 라벨만으로 모든 관리 관계를 설명하지는 않습니다.",
+          "보통 앱 개발자는 Deployment를 작성하고, 그 아래의 ReplicaSet을 직접 편집하지 않습니다. Deployment가 버전별 ReplicaSet을 관리하기 때문입니다. 사용자가 ReplicaSet 수를 임의로 바꾸면 상위 컨트롤러가 다시 원하는 상태로 맞출 수 있습니다.",
+          "새 Pod를 만들 수 있다고 해서 즉시 정상 서비스를 보장하지는 않습니다. 이미지가 없거나 Node 자원이 부족하면 새 Pod는 준비되지 못합니다. 수가 맞는지와 앱이 요청을 받을 준비가 되었는지는 함께 확인해야 합니다."
+        ],
+        "sources": [
+          [
+            "ReplicaSet",
+            "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/"
+          ],
+          [
+            "Labels and Selectors",
+            "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+          ]
+        ]
+      },
+      {
+        "title": "Service: 바뀌는 Pod 앞의 안정적인 접점",
+        "lead": "앱 인스턴스가 교체되어도 호출자는 같은 Service를 사용합니다.",
+        "kind": "READ & UNDERSTAND",
+        "flow": [
+          "API 호출자",
+          "frontend Service :80",
+          "selector app=frontend",
+          "Pod :8080"
+        ],
+        "notes": [
+          "학교 사무실의 대표 연락처를 떠올려 보세요. 담당자가 교체되어도 외부 사람은 같은 대표 연락처로 문의합니다. Service도 개별 Pod IP 대신 사용할 접점을 제공합니다. 단, 실제 네트워크에서 별도의 “전화 받는 Service 프로세스” 하나가 항상 떠 있다는 뜻은 아닙니다.",
+          "Service의 selector가 app: frontend인 Pod를 찾습니다. 실제 대상 주소는 EndpointSlice 등으로 관리됩니다. Pod가 교체되면 대상 정보가 달라져도 Service가 존재하는 동안 일반적인 ClusterIP와 이름은 유지됩니다. Service 자체를 삭제·재생성하면 주소가 바뀔 수 있습니다.",
+          "port: 80은 호출자가 사용하는 Service 포트이고, targetPort: 8080은 실제 앱 포트입니다. 번호를 같게 쓸 수도 있지만 같아야 하는 규칙은 없습니다. 같은 이름의 Deployment가 있어서 연결되는 것이 아니라 selector와 Pod 라벨이 맞기 때문에 연결됩니다.",
+          "브라우저의 JavaScript는 사용자 PC에서 실행됩니다. 그래서 클러스터 내부의 frontend.study.svc.cluster.local 주소를 그대로 fetch에 적으면 보통 접근할 수 없습니다. 외부에서 접근할 입구를 제공하는 다음 개념이 필요합니다."
+        ],
+        "sources": [
+          [
+            "Service로 앱 연결하기",
+            "https://kubernetes.io/docs/tutorials/services/connect-applications-service/"
+          ],
+          [
+            "Labels and Selectors",
+            "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+          ]
+        ]
+      },
+      {
+        "title": "Ingress: HTTP 요청의 목적지 안내서",
+        "lead": "호스트와 경로를 보고 어떤 Service로 전달할지 선언합니다.",
+        "kind": "READ & UNDERSTAND",
+        "flow": [
+          "shop.example.com/api",
+          "Ingress 규칙을 적용한 프록시",
+          "API Service",
+          "API Pod"
+        ],
+        "notes": [
+          "예를 들어 같은 쇼핑몰 주소에서 /는 FE, /api는 API 서비스로 보내고 싶을 수 있습니다. Ingress는 이런 호스트·경로와 백엔드 Service의 연결을 표현합니다. IP나 포트만 보는 것이 아니라 HTTP 요청의 정보를 사용할 수 있습니다.",
+          "Ingress YAML은 규칙입니다. 그 규칙을 읽고 프록시를 설정하는 Ingress Controller와 실제 요청을 처리하는 데이터 경로가 있어야 동작합니다. Controller를 설치하지 않고 Ingress 리소스만 만든다고 인터넷 접속이 가능해지는 것은 아닙니다.",
+          "도메인 등록도 자동으로 되지 않습니다. DNS가 외부 진입점 주소를 알려주고, 거기로 도착한 요청을 Ingress 규칙이 분류하는 순서입니다. 5~7주차에서는 DNS 입력 예시와 Ingress·Gateway API의 호스트 설정을 연결해서 읽어봅니다.",
+          "네 리소스의 역할을 다시 말해 보세요. Deployment와 ReplicaSet은 실행을 관리하고, Service와 Ingress는 요청이 앱에 도착할 수 있도록 연결합니다. 사용자가 보내는 HTTP 요청은 Deployment·ReplicaSet을 통과하지 않습니다."
+        ],
+        "sources": [
+          [
+            "Ingress",
+            "https://kubernetes.io/docs/concepts/services-networking/ingress/"
+          ]
+        ]
+      },
+      {
         "title": "두 개의 화살표를 구분하세요",
         "lead": "요청이 흐르는 관계와, 리소스를 관리하는 관계는 다릅니다.",
         "flow": [
@@ -141,7 +284,8 @@
           "다음 주 준비: Docker를 설치할 수 있는지, 가상화가 허용되는지, 이미지 다운로드 네트워크가 열려 있는지 확인합니다."
         ]
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "02",
@@ -247,7 +391,8 @@
         "answer": "포트 포워딩 터미널이 종료되었을 수 있습니다. Running은 컨테이너 실행 상태이고, 브라우저에서 Pod까지 연결이 유지된다는 의미는 아닙니다. port-forward 명령을 다시 실행하고 포트 번호를 확인하세요.",
         "notes": []
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "03",
@@ -354,7 +499,8 @@
         "answer": "아닙니다. 앱이 포트를 열고 있어야 하며, 컨테이너나 클러스터 밖에서 접근하려면 별도 연결 경로가 필요합니다. 이번에는 port-forward를 사용합니다.",
         "notes": []
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "04",
@@ -402,6 +548,55 @@
         "notes": [
           "selector는 이 Deployment가 관리할 Pod의 이름표 조건입니다. template은 새 Pod를 만들 때 사용할 양식입니다. replicas: 3은 원하는 개수입니다.",
           "APP_VERSION은 서버가 시작할 때 읽어 응답에 표시하는 값입니다. 실제 코드 업데이트는 새 이미지를 만들어 반영하지만, 먼저 설정 변화도 Pod 템플릿 변경임을 관찰합니다."
+        ]
+      },
+      {
+        "title": "YAML을 두 구역으로 나눠 읽기",
+        "lead": "Deployment 설정과 Pod 템플릿 설정의 위치를 구분합니다.",
+        "kind": "READ & UNDERSTAND",
+        "table": {
+          "headers": [
+            "필드",
+            "읽는 방법",
+            "수정했을 때"
+          ],
+          "rows": [
+            [
+              "spec.replicas",
+              "같은 역할의 Pod를 몇 개 유지할까",
+              "복제 개수 조정"
+            ],
+            [
+              "spec.selector.matchLabels",
+              "관리 대상 Pod를 고르는 조건",
+              "생성 후 보통 변경할 수 없는 식별 조건"
+            ],
+            [
+              "spec.template.metadata.labels",
+              "새 Pod에 붙일 이름표",
+              "Selector와 Service의 선택 조건에 맞춰 작성"
+            ],
+            [
+              "spec.template.spec.containers",
+              "실제로 실행할 이미지·환경 변수·포트",
+              "템플릿 변경으로 새 Rollout 진행"
+            ]
+          ]
+        },
+        "notes": [
+          "바깥쪽 metadata.name: frontend는 Deployment의 이름입니다. 안쪽 template.metadata.labels.app: frontend는 Pod의 이름표입니다. 같은 frontend 문자열을 써서 혼동하기 쉽지만 두 필드는 같은 목적이 아닙니다.",
+          "Service는 Deployment의 바깥 metadata.name을 보고 Pod를 고르지 않습니다. Pod의 라벨을 기준으로 선택합니다. Deployment 이름을 바꾸지 않아도 Service selector를 잘못 쓰면 연결이 끊길 수 있습니다.",
+          "kubectl -n study get pods --show-labels로 실제 라벨을 읽고, kubectl -n study get rs로 복제 상태를 보세요. 이미지 변경 전후에 이름·개수·READY를 기록하면 선언과 결과가 연결됩니다."
+        ],
+        "sources": [
+          [
+            "Deployment",
+            "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+          ],
+          [
+            "Labels and Selectors",
+            "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+          ]
         ]
       },
       {
@@ -458,7 +653,8 @@
           "다음 실습 전에 kubectl apply -f deployment.yaml을 실행해 기본 3개·APP_VERSION=v1 상태로 맞춥니다."
         ]
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "05",
@@ -545,6 +741,82 @@
         ]
       },
       {
+        "title": "도메인을 등록한다면: DNS에 쓰는 값",
+        "lead": "가상의 example.com 도메인과 외부 진입점 VIP를 가진 상황입니다.",
+        "kind": "READ & UNDERSTAND",
+        "table": {
+          "headers": [
+            "타입",
+            "이름 / 호스트",
+            "값 / 대상",
+            "TTL 예시"
+          ],
+          "rows": [
+            [
+              "A",
+              "app",
+              "203.0.113.10",
+              "300초"
+            ],
+            [
+              "CNAME (A의 대안)",
+              "app",
+              "lb.example.net",
+              "300초"
+            ]
+          ]
+        },
+        "callout": "둘 중 인프라가 제공하는 주소 형식에 맞춰 하나를 선택합니다. example.com·example.net과 203.0.113.10은 설명용입니다.",
+        "notes": [
+          "도메인을 소유한 것과 앱에 연결한 것은 다른 단계입니다. 도메인 등록기관에서 확보한 이름에 대해 권한 있는 DNS 서비스를 정하고, 그 서비스의 DNS 레코드 편집 화면에서 app 서브도메인을 추가합니다. 등록기관과 DNS 운영사가 다를 수도 있습니다.",
+          "외부 로드밸런서가 IPv4 주소를 제공하면 A 레코드에 그 주소를 적습니다. 이름 칸에 app을 적으면 example.com 영역에서 app.example.com이 됩니다. 제공자에 따라 전체 이름을 요구할 수도 있으므로 저장 후 완성된 이름을 확인합니다. IPv6 주소에는 AAAA를 사용합니다.",
+          "외부 진입점이 고정 IP 대신 lb.example.net 같은 DNS 이름을 제공하면 app을 CNAME으로 연결할 수 있습니다. 같은 이름에 A와 CNAME을 함께 두는 예시가 아닙니다. 루트 도메인에서는 제공자별 Alias/flattening 규칙이 다를 수 있어 여기서는 서브도메인을 사용합니다.",
+          "DNS 값에 http://, /api, :8080을 적지 않습니다. HTTP 경로와 포트는 DNS A/CNAME의 대상 값이 아닙니다. CDN 프록시가 있는 제공자는 DNS-only 모드와 프록시 모드도 구분해야 합니다. 이 그림은 DNS-only 구성을 가정합니다.",
+          "TTL은 조회 결과가 캐시에 남는 시간의 기준입니다. 값을 수정해도 모든 클라이언트가 즉시 새 주소를 쓰는 것은 아닙니다. 여기서는 작성 예시만 읽으며 실제 DNS·hosts 파일을 변경하지 않습니다."
+        ],
+        "sources": [
+          [
+            "DNS 레코드 관리",
+            "https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/"
+          ]
+        ]
+      },
+      {
+        "title": "등록 이후에도 필요한 세 가지 연결",
+        "lead": "DNS 한 줄만으로 Kubernetes 앱이 외부에 공개되지는 않습니다.",
+        "kind": "READ & UNDERSTAND",
+        "flow": [
+          "DNS: app → 외부 주소",
+          "네트워크: 80/443 도달",
+          "호스트·경로 라우팅",
+          "Service → 준비된 Pod"
+        ],
+        "bullets": [
+          "DNS 대상은 클라이언트에서 도달 가능한 외부 진입점입니다. 내부 ClusterIP를 그대로 넣지 않습니다.",
+          "Ingress의 host 또는 Gateway·HTTPRoute의 hostname을 같은 도메인으로 맞춥니다.",
+          "HTTPS에는 도메인에 맞는 인증서와 TLS Listener 설정이 별도로 필요합니다."
+        ],
+        "notes": [
+          "사내 서비스라면 사내 DNS와 VPN 등에서만 도달 가능한 주소를 사용할 수도 있습니다. 이번 외부 공개 예시와 내부 서비스의 접근 범위를 혼동하지 마세요. 어떤 주소를 쓸지는 인프라 담당자가 제공한 진입점 정보를 기준으로 합니다.",
+          "이름을 잘못 등록하면 접속 주소를 찾지 못하고, 네트워크가 막히면 시간 초과가 날 수 있으며, host 규칙이 다르면 프록시에 도착해도 일치하는 Route가 없을 수 있습니다. 각 단계는 독립적으로 확인해야 합니다.",
+          "실제 환경의 점검 예: nslookup app.example.com으로 DNS 응답을 확인하고, 올바른 네트워크에서 접속한 뒤 HTTP 상태와 TLS 인증서 호스트 이름을 확인합니다. 문서용 주소에 실제 접속 성공을 기대하지 않습니다."
+        ],
+        "sources": [
+          [
+            "DNS 레코드 관리",
+            "https://developers.cloudflare.com/dns/manage-dns-records/how-to/create-dns-records/"
+          ],
+          [
+            "Ingress",
+            "https://kubernetes.io/docs/concepts/services-networking/ingress/"
+          ],
+          [
+            "Gateway TLS 설정",
+            "https://gateway-api.sigs.k8s.io/guides/user-guides/tls/"
+          ]
+        ]
+      },
+      {
         "title": "내부 DNS를 직접 확인합니다",
         "lead": "도메인을 발급하지 않아도 클러스터 내부 Service 이름을 조회할 수 있습니다.",
         "kind": "LAB",
@@ -583,8 +855,96 @@
         "kind": "CHECK YOUR UNDERSTANDING",
         "answer": "Service selector와 Pod labels의 일치 여부, EndpointSlice의 주소와 readiness를 확인합니다. DNS가 정상이어도 실제 대상이 없으면 요청은 처리되지 않습니다.",
         "notes": []
+      },
+      {
+        "title": "중간 과제 1 · 스스로 복구되는 FE 서비스",
+        "lead": "5주차까지 배운 내용으로 실행·복구·접속 관계를 증명합니다.",
+        "kind": "ASSIGNMENT · 120분",
+        "bullets": [
+          "frontend Deployment를 2개 Pod로 실행하고 APP_VERSION을 hw1으로 설정하세요. 앱의 포트는 8080입니다.",
+          "frontend Service는 ClusterIP, port 80 → targetPort 8080으로 작성하세요. selector와 Pod 라벨의 연결을 설명하세요.",
+          "Service 포트 포워딩을 localhost:18080으로 열어 화면과 /api의 결과를 확인하세요."
+        ],
+        "callout": "120분 · 상세 요구사항·시간 배분·제출물·평가 기준은 아래 과제 안내에서 확인하세요.",
+        "notes": [
+          "정답 YAML을 그대로 복사하기보다 본인의 이름·라벨·포트를 정하고 관찰 결과로 설명하는 과제입니다. 막히면 아래 힌트를 열어 보세요."
+        ],
+        "assignment": {
+          "chapter": "05",
+          "id": "midterm-1",
+          "title": "중간 과제 1 · 스스로 복구되는 FE 서비스",
+          "duration": "120분",
+          "lead": "5주차까지 배운 내용으로 실행·복구·접속 관계를 증명합니다.",
+          "prerequisites": [
+            "2~5주차 완료. minikube 실행, fe-study:v1 이미지 로드 및 기본 앱 동작 확인. 설치·다운로드 대기 시간은 120분에 포함하지 않습니다.",
+            "기존 study와 구분해 hw1 Namespace에서 진행합니다. server.mjs와 Dockerfile은 재사용하되 리소스 YAML은 직접 작성합니다."
+          ],
+          "requirements": [
+            "frontend Deployment를 2개 Pod로 실행하고 APP_VERSION을 hw1으로 설정하세요. 앱의 포트는 8080입니다.",
+            "frontend Service는 ClusterIP, port 80 → targetPort 8080으로 작성하세요. selector와 Pod 라벨의 연결을 설명하세요.",
+            "Service 포트 포워딩을 localhost:18080으로 열어 화면과 /api의 결과를 확인하세요.",
+            "Pod 하나를 삭제하기 전후 이름·개수·READY를 기록하고, ReplicaSet이 한 일을 설명하세요.",
+            "Service selector를 잠깐 잘못 바꿔 Endpoint 변화를 기록한 뒤 복구하세요. 내부 VIP와 외부 VIP를 구분하는 문장, 가상 도메인의 A 레코드 한 줄을 작성하세요. 실제 DNS 변경은 하지 않습니다."
+          ],
+          "schedule": [
+            [
+              "0~15분",
+              "목표 구조와 라벨·포트 설계"
+            ],
+            [
+              "15~50분",
+              "Namespace·Deployment·Service YAML 작성"
+            ],
+            [
+              "50~75분",
+              "화면/API 확인, Pod 삭제 및 복구 관찰"
+            ],
+            [
+              "75~100분",
+              "Selector 오류 진단과 복원"
+            ],
+            [
+              "100~120분",
+              "증거 정리와 5문장 설명"
+            ]
+          ],
+          "deliverables": [
+            "namespace.yaml, deployment.yaml, service.yaml",
+            "REPORT.md: 실행 명령, 정상 응답, 삭제 전후 Pod 목록, Endpoint 오류·복구 증거",
+            "관리 관계·요청 흐름 그림 각각 1개 및 가상 DNS 매핑 1줄"
+          ],
+          "criteria": [
+            [
+              "선언과 접속",
+              "30점",
+              "Pod 2개 Ready, 앱 버전 hw1 및 /api 응답 확인"
+            ],
+            [
+              "복구 관찰",
+              "25점",
+              "삭제 전후 다른 Pod가 생성됨을 증거로 설명"
+            ],
+            [
+              "네트워크 진단",
+              "25점",
+              "Selector 오류와 Endpoint 변화의 인과관계 및 복구"
+            ],
+            [
+              "설명·재현성",
+              "20점",
+              "라벨·포트·VIP 설명과 제출 파일로 재현 가능"
+            ]
+          ],
+          "hints": [
+            "Service 이름을 Deployment와 같게 정했다고 자동 연결되지는 않습니다. get pods --show-labels와 Service selector를 나란히 보세요.",
+            "port-forward가 연결했던 Pod가 사라지면 포워딩도 끊길 수 있습니다. Pod 복구 확인과 터널 재연결을 별개로 확인하세요.",
+            "외부 A 레코드의 대상에 10.96.x.x 같은 ClusterIP를 넣지 않습니다. 문서용 외부 VIP 203.0.113.10을 써도 됩니다."
+          ],
+          "check": "완료 기준: YAML로 정상 상태 재현, Pod 복구 확인, 의도한 장애 복원, 세 종류의 제출물 준비. 과제 종료 후 포트 포워딩을 종료하고 hw1 리소스는 리뷰까지 보관합니다."
+        }
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "06",
@@ -646,6 +1006,25 @@
         ]
       },
       {
+        "title": "Ingress에 도메인을 적는 위치",
+        "lead": "DNS의 app.example.com과 rules.host를 맞춥니다.",
+        "kind": "READ & UNDERSTAND",
+        "code": "# 설명용: 실제 Controller 이름, 인증서 Secret, 외부 진입점이 필요합니다.\napiVersion: networking.k8s.io/v1\nkind: Ingress\nmetadata:\n  name: frontend-domain-example\n  namespace: study\nspec:\n  ingressClassName: your-ingress-class\n  tls:\n    - hosts:\n        - app.example.com\n      secretName: app-example-com-tls\n  rules:\n    - host: app.example.com\n      http:\n        paths:\n          - path: /\n            pathType: Prefix\n            backend:\n              service:\n                name: frontend\n                port:\n                  number: 80\n",
+        "file": "ingress-domain-reference.yaml",
+        "notes": [
+          "DNS에는 app.example.com → 외부 진입점 주소를 등록한다고 가정합니다. 이 YAML의 rules.host는 그 주소로 들어온 요청 중 app.example.com을 사용하는 요청을 선택합니다. Ingress에 host를 적는 행위 자체는 DNS 등록이 아닙니다.",
+          "ingressClassName은 실제 설치한 Controller의 클래스 이름으로 바꿔야 합니다. frontend Service는 study Namespace에 있고 port 80을 제공한다고 가정합니다. API를 따로 분리한다면 /api 규칙과 API Service를 추가할 수 있습니다.",
+          "tls.hosts는 인증서가 적용될 이름이며, secretName은 같은 Namespace에 이미 준비된 kubernetes.io/tls Secret을 참조합니다. 그 안에는 도메인에 맞는 인증서·개인 키가 필요합니다. 이 파일은 인증서를 생성하지 않으며 HTTPS 리다이렉트 동작은 Controller별 설정을 확인해야 합니다.",
+          "이 파일은 설명용 다운로드입니다. 도메인 구매, 인증서 발급, 외부 접속 또는 hosts 변경은 과제의 요구사항이 아닙니다. 실제 적용할 수 없는 로컬 환경에서는 기존의 도메인 없는 실습 파일을 그대로 사용합니다."
+        ],
+        "sources": [
+          [
+            "Ingress",
+            "https://kubernetes.io/docs/concepts/services-networking/ingress/"
+          ]
+        ]
+      },
+      {
         "title": "라우팅과 경로 변경은 별개입니다",
         "lead": "/api 요청을 API Service로 보내도 /api 접두어가 자동 삭제되는 것은 아닙니다.",
         "cards": [
@@ -698,7 +1077,8 @@
           "토론: 브라우저 개발자 도구에서 상태 코드와 응답 본문을 확인하고, 앱 로그·프록시 로그에서 요청 도착을 확인하는 순서를 설명해 보세요."
         ]
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "07",
@@ -798,6 +1178,29 @@
         "trouble": "404면 HTTPRoute 연결과 경로를, 503 등 업스트림 오류면 Service·EndpointSlice·Pod readiness를 확인합니다. 아직 Envoy Service가 없다면 Controller 로그와 Gateway 상태를 확인합니다."
       },
       {
+        "title": "Gateway API에서 도메인과 HTTPS 연결하기",
+        "lead": "Listener와 HTTPRoute의 호스트가 함께 맞아야 합니다.",
+        "kind": "READ & UNDERSTAND",
+        "code": "# 설명용: eg GatewayClass 및 같은 Namespace의 TLS Secret이 필요합니다.\napiVersion: gateway.networking.k8s.io/v1\nkind: Gateway\nmetadata:\n  name: domain-gateway-example\n  namespace: study\nspec:\n  gatewayClassName: eg\n  listeners:\n    - name: https\n      hostname: app.example.com\n      port: 443\n      protocol: HTTPS\n      tls:\n        mode: Terminate\n        certificateRefs:\n          - kind: Secret\n            name: app-example-com-tls\n      allowedRoutes:\n        namespaces:\n          from: Same\n---\napiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: frontend-domain-example\n  namespace: study\nspec:\n  parentRefs:\n    - name: domain-gateway-example\n      sectionName: https\n  hostnames:\n    - app.example.com\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80\n",
+        "file": "gateway-domain-reference.yaml",
+        "notes": [
+          "DNS는 외부 Gateway 진입점으로 매핑된다고 가정합니다. Listener의 hostname은 이 입구가 처리할 호스트 범위를 정합니다. HTTPRoute의 hostnames는 Route가 처리할 호스트를 정하고, parentRefs와 sectionName은 이 HTTPS Listener에 연결합니다.",
+          "같은 app.example.com을 지정해 관계를 명확히 했습니다. Listener와 Route의 호스트 조건이 호환되지 않으면 요청이 예상한 Route에 붙지 않습니다. Accepted·ResolvedRefs 상태도 확인합니다.",
+          "TLS mode: Terminate는 진입점에서 HTTPS를 복호화하는 구성입니다. certificateRefs의 Secret은 같은 study Namespace에 미리 준비되어 있고 app.example.com에 유효해야 합니다. 여기서는 뒤의 Service 80번 포트까지 HTTP로 연결하는 예입니다. 인증서 자동 발급이나 백엔드 TLS까지 자동 설정하지 않습니다.",
+          "이 예제는 7주차 실습의 gateway.yaml·route.yaml을 대체해 실행하는 과제가 아닙니다. 별도 설명용 파일이며 수업 접속은 기존 localhost:8888을 유지합니다."
+        ],
+        "sources": [
+          [
+            "HTTPRoute",
+            "https://gateway-api.sigs.k8s.io/guides/user-guides/http-routing/"
+          ],
+          [
+            "Gateway TLS 설정",
+            "https://gateway-api.sigs.k8s.io/guides/user-guides/tls/"
+          ]
+        ]
+      },
+      {
         "title": "HTTPRoute에 적는 80은 Pod 포트인가요?",
         "lead": "먼저 자신의 말로 답하고, 해설을 열어 비교해 보세요.",
         "kind": "CHECK YOUR UNDERSTANDING",
@@ -806,7 +1209,8 @@
           "전체 흐름을 말해 보세요: localhost:8888 → 포트 포워딩 → Envoy 프록시 → HTTPRoute 목적지 선택 → frontend Service의 대상 Pod. 실제 프록시는 Service VIP 대신 Endpoint에 직접 연결할 수도 있습니다."
         ]
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "08",
@@ -862,6 +1266,78 @@
         "callout": "Pod를 어느 Node에 배치할지 정하는 스케줄링 설정도 아닙니다."
       },
       {
+        "title": "두 Region에 각각 구성해도 남는 운영 과제",
+        "lead": "Region A와 B에 Ingress → Service → Pod가 각각 있는 구성을 비교합니다.",
+        "cards": [
+          [
+            "Region A",
+            "Ingress A → Service A → Pod A (Deployment A가 관리)"
+          ],
+          [
+            "Region B",
+            "Ingress B → Service B → Pod B (Deployment B가 관리)"
+          ]
+        ],
+        "table": {
+          "headers": [
+            "두 Region 구성의 운영 과제",
+            "왜 별도 설계가 필요한가"
+          ],
+          "rows": [
+            [
+              "진입점 선택",
+              "각 Ingress는 자기 클러스터의 경로를 처리합니다. 사용자 요청을 어느 Region으로 보낼지는 상위 계층에서 정합니다."
+            ],
+            [
+              "장애 전환",
+              "A의 Service가 B 클러스터의 같은 이름 Service를 자동으로 찾아주지는 않습니다. 글로벌 상태 확인과 전환 정책이 필요합니다."
+            ],
+            [
+              "설정·배포 일치",
+              "Ingress 경로, 인증서, Service 포트, 앱 버전이 두 Region에서 달라지지 않게 관리해야 합니다."
+            ],
+            [
+              "용량·데이터",
+              "B가 A의 부하까지 받을 용량과 데이터·세션 접근성을 준비해야 합니다."
+            ],
+            [
+              "전환 중 요청",
+              "감지 지연, DNS 캐시(사용 시), 기존 연결 종료와 재시도를 고려합니다."
+            ]
+          ]
+        },
+        "notes": [
+          "두 Region에 배포하면 지역 장애를 분리할 기반이 생깁니다. 다만 자원 두 벌을 만드는 것만으로 자동 장애 전환이 완성되지는 않습니다. 이 설명은 Region마다 독립 클러스터가 있는 구성을 기준으로 합니다.",
+          "trafficDistribution 이전에도 이런 멀티 Region 구성은 가능했습니다. trafficDistribution을 추가해도 글로벌 라우팅, 설정 동기화, 데이터 복제 문제가 한꺼번에 해결되지는 않습니다. 같은 Service의 Endpoint 위치 선호와 Region 선택은 별도의 범위입니다.",
+          "Deployment는 요청이 통과하는 네트워크 장비가 아니라 Pod를 관리하는 리소스입니다. 그림에서는 요청 경로와 관리 관계를 구분합니다."
+        ],
+        "sources": [
+          [
+            "Service 트래픽 정책",
+            "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+          ],
+          [
+            "글로벌 라우팅의 역할",
+            "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+          ]
+        ]
+      },
+      {
+        "title": "애니메이션: 정상 선택과 Zone 대상 장애",
+        "lead": "Service 위치 선호의 범위를 직접 재생해 보세요.",
+        "networkAnimation": "zone",
+        "notes": [
+          "이 그림은 같은 클러스터 안의 Zone A 호출자가 살아 있으며, Zone A의 서비스 대상만 실패한 경우입니다. 감지·전파 지연 이후 준비된 Zone B Endpoint로 fallback하는 개념 흐름입니다.",
+          "엄격한 Local 정책이 없다는 전제입니다. Region 장애 전환 그림은 심화 A06에서 글로벌 진입점과 데이터·재시도 조건을 함께 설명합니다."
+        ],
+        "sources": [
+          [
+            "Service 트래픽 정책",
+            "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+          ]
+        ]
+      },
+      {
         "title": "v1과 v2를 별도 대상으로 준비합니다",
         "lead": "같은 코드 이미지의 APP_VERSION만 달리해 라우팅 관찰용 v2를 만듭니다.",
         "kind": "LAB",
@@ -901,8 +1377,102 @@
         "kind": "CHECK YOUR UNDERSTANDING",
         "answer": "아닙니다. Gateway가 Service 간 요청 비율을 선택한 뒤 각 Service의 Endpoint로 전달합니다. Pod 개수와 Service 간 가중치는 다른 설정입니다. 단, 실제 처리 용량은 Pod 개수와 자원에 영향을 받습니다.",
         "notes": []
+      },
+      {
+        "title": "중간 과제 2 · 두 버전으로 트래픽 나누기",
+        "lead": "Gateway API의 연결 관계와 90:10 가중치를 직접 설계합니다.",
+        "kind": "ASSIGNMENT · 120분",
+        "bullets": [
+          "v1·v2 Deployment와 Service를 각각 만드세요. Pod 라벨을 분리하여 두 Service의 대상이 겹치지 않게 합니다.",
+          "hw2에 Gateway와 HTTPRoute를 작성하세요. 도메인 조건 없이 /api가 두 Service로 분할되도록 합니다.",
+          "해당 Gateway가 생성한 Envoy 프록시 Service를 찾아 localhost:18888로 포워딩하세요. 다른 Gateway의 Service를 선택하지 않게 Namespace 라벨도 확인하세요."
+        ],
+        "callout": "120분 · 상세 요구사항·시간 배분·제출물·평가 기준은 아래 과제 안내에서 확인하세요.",
+        "notes": [
+          "정답 YAML을 그대로 복사하기보다 본인의 이름·라벨·포트를 정하고 관찰 결과로 설명하는 과제입니다. 막히면 아래 힌트를 열어 보세요."
+        ],
+        "assignment": {
+          "chapter": "08",
+          "id": "midterm-2",
+          "title": "중간 과제 2 · 두 버전으로 트래픽 나누기",
+          "duration": "120분",
+          "lead": "Gateway API의 연결 관계와 90:10 가중치를 직접 설계합니다.",
+          "prerequisites": [
+            "7~8주차 완료. Envoy Gateway 설치와 localhost 접속을 사전 확인합니다. 설치 시간은 과제 시간에서 제외합니다.",
+            "hw2 Namespace를 만들고 기존 eg GatewayClass를 재사용합니다. fe-study:v1 이미지를 이용해 APP_VERSION만 v1/v2로 다르게 설정해도 됩니다."
+          ],
+          "requirements": [
+            "v1·v2 Deployment와 Service를 각각 만드세요. Pod 라벨을 분리하여 두 Service의 대상이 겹치지 않게 합니다.",
+            "hw2에 Gateway와 HTTPRoute를 작성하세요. 도메인 조건 없이 /api가 두 Service로 분할되도록 합니다.",
+            "해당 Gateway가 생성한 Envoy 프록시 Service를 찾아 localhost:18888로 포워딩하세요. 다른 Gateway의 Service를 선택하지 않게 Namespace 라벨도 확인하세요.",
+            "90:10으로 100회 이상 호출해 버전별 건수를 표로 기록하세요. 50:50으로 변경해 같은 방식으로 비교하세요.",
+            "backendRefs의 이름 하나를 존재하지 않는 Service로 바꿔 ResolvedRefs·응답 변화를 관찰하고 복구하세요. 정확한 오류 상태 코드를 미리 정답으로 가정하지 마세요.",
+            "설명 문제: Service trafficDistribution과 HTTPRoute weight의 차이를 5문장 이내로 쓰세요. DNS A 레코드와 HTTPRoute hostnames를 맞추는 가상 예시만 제출하세요."
+          ],
+          "schedule": [
+            [
+              "0~15분",
+              "라벨·리소스 이름·연결 관계 설계"
+            ],
+            [
+              "15~45분",
+              "두 버전과 Service 구성"
+            ],
+            [
+              "45~70분",
+              "Gateway·HTTPRoute·포트 포워딩 연결"
+            ],
+            [
+              "70~95분",
+              "가중치 두 종류의 호출 결과 수집"
+            ],
+            [
+              "95~110분",
+              "참조 오류 관찰 및 복구"
+            ],
+            [
+              "110~120분",
+              "결과표와 개념 비교 작성"
+            ]
+          ],
+          "deliverables": [
+            "hw2 전체 YAML과 90:10·50:50 설정 파일 또는 변경 이력",
+            "REPORT.md: 호출 수, v1/v2 관측 수, 실제 비율, 오차 해석",
+            "정상·비정상 HTTPRoute 상태 증거, 장애 복원 과정, DNS/hostnames 예시"
+          ],
+          "criteria": [
+            [
+              "라우팅 구성",
+              "30점",
+              "Namespace·parentRefs·Service 참조가 맞고 /api 응답 성공"
+            ],
+            [
+              "분할 관찰",
+              "30점",
+              "각 설정 100회 이상, 버전별 집계와 오차 설명"
+            ],
+            [
+              "장애 진단",
+              "20점",
+              "ResolvedRefs 확인과 올바른 참조 복원"
+            ],
+            [
+              "개념 구분",
+              "20점",
+              "위치 선호와 가중치, DNS와 HTTP 라우팅 구분"
+            ]
+          ],
+          "hints": [
+            "Service 직접 포트 포워딩이 아니라 Envoy 프록시 Service를 포워딩해야 Gateway의 분할을 지나갑니다.",
+            "프록시 Service 조회 시 gateway.envoyproxy.io/owning-gateway-namespace=hw2 라벨도 사용하세요.",
+            "100회 중 정확히 10회가 v2여야 통과하는 과제가 아닙니다. 표본 오차와 실행한 HTTPRoute 설정을 함께 설명하세요.",
+            "Service 참조가 잘못된 가중치 대상이 있으면 일부 요청이 실패할 수도 있습니다. Route 상태와 요청 결과를 모두 수집하세요."
+          ],
+          "check": "완료 기준: 두 가중치 설정의 관측 결과와 설명, 참조 오류의 원인·복구 증거를 제출합니다. 최종 라우팅은 정상 90:10으로 복원하고 포트 포워딩을 종료합니다."
+        }
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "09",
@@ -1059,7 +1629,8 @@
         "answer": "아닙니다. Ready는 요청 처리 준비 상태의 신호입니다. 실제 오류율, 지연, 구매·로그인 같은 사용자 동작까지 성공한다는 보장은 없으므로 관찰 기준이 필요합니다.",
         "notes": []
       }
-    ]
+    ],
+    "track": "basic"
   },
   {
     "id": "10",
@@ -1188,6 +1759,850 @@
         "notes": [
           "마무리: 포트 포워딩 터미널을 종료하고 minikube stop으로 환경을 보관합니다. 전체 환경이 더 이상 필요 없을 때만 minikube delete로 삭제하세요."
         ]
+      },
+      {
+        "title": "파이널 과제 · FE 서비스 운영 리허설",
+        "lead": "실행·접속·설정·트래픽·배포·장애 대응을 하나의 프로젝트로 연결합니다.",
+        "kind": "ASSIGNMENT · 240분 권장",
+        "bullets": [
+          "자신의 YAML로 Namespace, Deployment 2개 이상, 버전별 Service, Gateway, HTTPRoute, ConfigMap을 구성하세요. 처음 보는 사람이 적용할 순서를 README에 적으세요.",
+          "ConfigMap에서 앱의 표시 버전을 주입하고 빌드 시점 FE 환경 변수와 이번 서버 실행 시점 설정의 차이를 설명하세요.",
+          "Readiness·Liveness·Startup Probe 및 CPU·메모리 requests/limits를 적용하고, 요청 흐름을 localhost부터 Pod까지 그리세요."
+        ],
+        "callout": "240분 권장 · 상세 요구사항·시간 배분·제출물·평가 기준은 아래 과제 안내에서 확인하세요.",
+        "notes": [
+          "정답 YAML을 그대로 복사하기보다 본인의 이름·라벨·포트를 정하고 관찰 결과로 설명하는 과제입니다. 막히면 아래 힌트를 열어 보세요."
+        ],
+        "assignment": {
+          "chapter": "10",
+          "id": "final",
+          "title": "파이널 과제 · FE 서비스 운영 리허설",
+          "duration": "240분 권장",
+          "lead": "실행·접속·설정·트래픽·배포·장애 대응을 하나의 프로젝트로 연결합니다.",
+          "prerequisites": [
+            "1~10주차 완료. 로컬 클러스터와 Envoy Gateway 사용 가능. 기본 앱은 제공 파일을 재사용할 수 있습니다. 새 프레임워크 개발·도메인 구매·Argo CD 설치는 요구하지 않습니다.",
+            "final-study Namespace를 사용하고, 다른 과제 리소스와 이름을 섞지 않습니다. 기본 이미지는 준비되어 있으며 시간은 구현·관찰·설명 기준입니다."
+          ],
+          "requirements": [
+            "자신의 YAML로 Namespace, Deployment 2개 이상, 버전별 Service, Gateway, HTTPRoute, ConfigMap을 구성하세요. 처음 보는 사람이 적용할 순서를 README에 적으세요.",
+            "ConfigMap에서 앱의 표시 버전을 주입하고 빌드 시점 FE 환경 변수와 이번 서버 실행 시점 설정의 차이를 설명하세요.",
+            "Readiness·Liveness·Startup Probe 및 CPU·메모리 requests/limits를 적용하고, 요청 흐름을 localhost부터 Pod까지 그리세요.",
+            "두 버전 요청을 90:10 → 50:50 → 0:100으로 전환해 각 단계의 설정과 응답 증거를 남기세요. 수동 전환이며 자동 분석 기능이 아님을 설명하세요.",
+            "한 Deployment에서 Rolling Update를 관찰하고 잘못된 이미지 태그 배포를 만든 뒤 이전 버전으로 복구하세요. replicas=2, maxSurge=1, maxUnavailable=0의 의미를 적으세요.",
+            "추가 장애 하나를 선택하세요: Service selector 불일치 또는 HTTPRoute의 잘못된 Service 참조. 증상 → 가설 → 확인 명령 → 원인 → 수정 → 재검증 순서로 보고하세요.",
+            "가상 도메인의 DNS 입력 표, 도메인 있는 Ingress 또는 Gateway 설정 예시를 작성하세요. 실제 적용하지 않고 도메인·외부 VIP·내부 ClusterIP·TLS의 역할을 설명합니다.",
+            "세 배포 전략의 차이를 그림으로 요약하고 이 앱에서 선택할 전략과 이유를 쓰세요. Argo CD가 이 과정에서 맡는 역할과 맡지 않는 역할을 5문장으로 설명하세요."
+          ],
+          "schedule": [
+            [
+              "0~25분",
+              "구조도와 파일 구성 설계"
+            ],
+            [
+              "25~85분",
+              "기본 배포·Service·Gateway 연결"
+            ],
+            [
+              "85~125분",
+              "ConfigMap·Probe·리소스 설정"
+            ],
+            [
+              "125~165분",
+              "세 단계 트래픽 전환 관찰"
+            ],
+            [
+              "165~210분",
+              "Rollout 실패 복구 및 추가 장애 진단"
+            ],
+            [
+              "210~240분",
+              "도메인 예시·배포 전략·보고서 정리"
+            ]
+          ],
+          "deliverables": [
+            "manifests/: 모든 리소스 YAML, 적용 순서, 정상 최종 상태",
+            "README.md: 전제 조건, 이미지 준비, 실행·확인·종료 순서",
+            "REPORT.md: 가중치 관측표, Rollout·Rollback 증거, 장애 보고서",
+            "architecture.md 또는 이미지: 관리 관계·요청 흐름·세 배포 전략 그림",
+            "domain-example.md: DNS 표·호스트 설정·인증서 참조 설명, Argo CD 역할 요약"
+          ],
+          "criteria": [
+            [
+              "재현 가능한 구성",
+              "25점",
+              "제출된 순서로 정상 앱과 라우팅 재현"
+            ],
+            [
+              "연결·설정 설명",
+              "20점",
+              "Selector·포트·ConfigMap·Probe·자원 설정 이해"
+            ],
+            [
+              "트래픽·배포",
+              "25점",
+              "단계별 결과와 Rolling Update·Rollback 증거"
+            ],
+            [
+              "장애 대응",
+              "20점",
+              "실제 출력에 근거한 원인과 복구 확인"
+            ],
+            [
+              "통합 설명",
+              "10점",
+              "도메인/VIP·세 전략·Argo CD 역할의 정확성"
+            ]
+          ],
+          "hints": [
+            "이전 과제 YAML을 재사용해도 되지만 Namespace·라벨·parentRefs·Service 이름을 함께 점검하세요.",
+            "ConfigMap env 값이 바뀌어도 이미 실행 중인 컨테이너에는 자동 반영되지 않습니다. 새 Pod 반영과 Git/파일의 최종 상태까지 맞추세요.",
+            "가중치 테스트 후 최종 보고서에 현재 정상 운영 대상으로 어느 버전을 선택했는지 명시하세요. 실패한 이미지 참조를 제출 YAML에 남기지 않습니다.",
+            "Argo CD 설명은 Git 선언 반영 → Kubernetes 컨트롤러의 Rollout으로 연결하면 됩니다. 설치 화면이나 Sync 실행 증거는 필요 없습니다."
+          ],
+          "check": "완료 기준: 정상 상태 재현, 트래픽 분할·배포 복구·추가 장애의 증거, 설명 자료 제출. 4시간은 권장치이며 발표 시간을 별도로 10분 배정합니다. 공개 배포와 도메인 등록은 평가하지 않습니다."
+        }
+      }
+    ],
+    "track": "basic"
+  },
+  {
+    "id": "A01",
+    "track": "advanced",
+    "short": "Probe 설계",
+    "title": "실행 중과 준비 완료는 다릅니다",
+    "description": "readiness·liveness·startup을 서로 다른 실패 동작으로 이해합니다.",
+    "type": "심화 · 개념 + 관찰",
+    "sources": [
+      [
+        "Probe 설정",
+        "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"
+      ]
+    ],
+    "slides": [
+      {
+        "title": "기본 과정 다음, 운영을 생각해 봅시다",
+        "lead": "심화 01~06은 각 1회 2시간을 권장합니다. 기본 10주 이후 필요한 순서로 이어갑니다.",
+        "cards": [
+          [
+            "A01–A02",
+            "상태 확인·preStop·SIGTERM·진행 중 요청 완료"
+          ],
+          [
+            "A03–A04",
+            "/와 /api 분리·Rewrite·접근 로그·요청 헤더"
+          ],
+          [
+            "A05–A06",
+            "배포 관찰·Zone 선호·Region 장애와 전환"
+          ]
+        ],
+        "notes": [
+          "기본 과정의 localhost 실습, Deployment·Service·HTTPRoute 관계, 롤링 업데이트를 이해한 뒤 시작합니다. 심화도 외부 도메인과 Argo CD 설치를 요구하지 않습니다.",
+          "Envoy Gateway v1.9 계열을 기준으로 로그 예제를 작성했습니다. Gateway API의 표준 HTTPRoute와 Envoy Gateway 전용 EnvoyProxy를 구분해 표시합니다. A06은 실제 Region을 만들지 않는 시뮬레이션입니다."
+        ]
+      },
+      {
+        "title": "Probe가 묻는 질문이 다릅니다",
+        "lead": "체크 결과를 보고 어떤 조치를 할지부터 설계하세요.",
+        "table": {
+          "headers": [
+            "종류",
+            "질문",
+            "연속 실패 시",
+            "이 예제"
+          ],
+          "rows": [
+            [
+              "readinessProbe",
+              "지금 요청을 받아도 되는가",
+              "일반 Service의 ready 대상에서 제외, 자체 재시작 없음",
+              "/readyz"
+            ],
+            [
+              "livenessProbe",
+              "재시작으로 복구할 상태인가",
+              "kubelet이 해당 컨테이너 재시작 처리",
+              "/livez"
+            ],
+            [
+              "startupProbe",
+              "초기화가 끝났는가",
+              "허용 시간 내 실패하면 재시작; 성공 전 다른 Probe 지연",
+              "/startupz"
+            ]
+          ]
+        },
+        "notes": [
+          "Pod phase가 Running이어도 준비된 상태와 같지 않습니다. 이미지와 프로세스가 실행되어도 캐시를 읽거나 초기 연결을 준비하는 시간이 있을 수 있습니다.",
+          "readiness 실패는 이미 처리 중인 모든 요청을 취소하는 명령이 아닙니다. 대상 정보 전파와 기존 연결을 고려해야 하므로 “체크가 실패한 바로 그 순간 요청이 완전히 멈춘다”고 생각하지 않습니다."
+        ]
+      },
+      {
+        "title": "의존 시스템 장애를 전부 Liveness로 묶지 않습니다",
+        "lead": "DB가 잠깐 느린데 모든 앱을 재시작하면 회복이 더 어려워질 수 있습니다.",
+        "cards": [
+          [
+            "Readiness 판단",
+            "핵심 요청을 처리할 수 없는 상태라면 임시 제외를 검토."
+          ],
+          [
+            "Liveness 판단",
+            "교착 등 재시작이 회복에 도움이 되는 앱 내부 상태."
+          ],
+          [
+            "Startup 판단",
+            "초기화 시간이 긴 앱을 너무 일찍 재시작하지 않기."
+          ]
+        ],
+        "notes": [
+          "체크 경로를 나누는 이유는 이름을 다르게 붙이기 위해서가 아닙니다. 실패했을 때 원하는 조치가 다르기 때문입니다. 같은 health 경로를 세 곳에 복사하기 전에 실제로 무엇을 검사하는지 확인합니다.",
+          "readiness를 너무 민감하게 설정해 모든 Pod를 동시에 제외하면 처리할 Endpoint가 없어집니다. 의존 시스템의 중요도·부분 기능 제공 가능성·타임아웃과 함께 설계해야 합니다. 제공된 실습은 외부 DB 없이 상태 플래그만 바꾸어 동작을 관찰합니다."
+        ]
+      },
+      {
+        "title": "심화 실습 앱 준비",
+        "lead": "기본 실습 폴더와 구분해 k8s/labs/advanced에서 명령을 실행합니다.",
+        "kind": "LAB",
+        "code": "docker build -t fe-advanced:v1 .\nminikube image load fe-advanced:v1\nkubectl apply -f apps.yaml\nkubectl -n advanced-study rollout status deployment/api\nkubectl -n advanced-study rollout status deployment/frontend\nkubectl -n advanced-study get pods",
+        "file": "advanced/apps.yaml",
+        "notes": [
+          "같은 폴더의 Dockerfile과 server.mjs도 필요합니다. 저장소를 내려받은 경우 k8s/labs/advanced로 이동하면 모두 들어 있습니다. 두 Deployment는 같은 이미지에서 ROLE만 바꾸어 각각 FE와 API로 동작합니다.",
+          "API는 /api/users와 /users에 role·path·version·pod를 응답합니다. 프런트엔드는 /에서 API 버튼이 있는 HTML을 제공합니다. /startupz는 3초 초기화 이후 성공하고 /readyz·/livez는 의도적으로 나눠져 있습니다."
+        ],
+        "expected": "초기화 이후 frontend·api 각각 2개 Pod가 Ready가 됩니다.",
+        "trouble": "기존 fe-study:v1 대신 새 fe-advanced:v1 이미지가 로드되어야 합니다. 다운로드·이미지 빌드가 제한되면 강사가 사전 준비합니다."
+      },
+      {
+        "title": "Readiness만 실패시켜 차이를 관찰하기",
+        "lead": "삭제·재시작 없이 한 Pod가 준비된 대상에서 빠지는지 확인합니다.",
+        "kind": "LAB",
+        "code": "kubectl -n advanced-study get pods -l app=advanced-api\n# POD_NAME은 위 목록의 한 Pod 이름\nkubectl -n advanced-study exec POD_NAME -- node -e \"require('node:fs').writeFileSync('/tmp/not-ready','')\"\nkubectl -n advanced-study get pods\nkubectl -n advanced-study get endpointslice -l kubernetes.io/service-name=api -o yaml\n# 복구\nkubectl -n advanced-study exec POD_NAME -- node -e \"require('node:fs').unlinkSync('/tmp/not-ready')\"",
+        "notes": [
+          "실패 임계값에 도달할 시간을 둔 뒤 READY와 RESTARTS를 비교합니다. readiness만 실패했다면 재시작 횟수가 늘어나는 것이 목적이 아닙니다. EndpointSlice는 해당 주소를 즉시 삭제하는 대신 ready: false로 남겨둘 수도 있습니다.",
+          "periodSeconds 2와 failureThreshold 2는 두 번 연속 실패를 기준으로 하지만 스케줄링·검사 시점·전파 때문에 정확히 4초 안에 모든 요청이 차단된다는 보장은 아닙니다."
+        ],
+        "expected": "선택한 Pod가 Running 0/1로 바뀌고 재시작 횟수는 유지됩니다. 플래그 제거 후 다시 준비됩니다."
+      },
+      {
+        "title": "Startup 30 × 2초는 무엇을 뜻하나요?",
+        "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+        "kind": "CHECK",
+        "answer": "초기화에 약 60초 규모의 실패 허용 창을 둔 설계입니다. 정확한 종료 시각 보장은 아닙니다. Startup이 성공한 뒤에는 Readiness와 Liveness가 각자의 기준으로 실행됩니다."
+      }
+    ]
+  },
+  {
+    "id": "A02",
+    "track": "advanced",
+    "short": "preStop · 무중단 배포",
+    "title": "잘 시작하고, 잘 종료하기",
+    "description": "새 Pod의 준비와 기존 Pod의 요청 마무리를 함께 설계합니다.",
+    "type": "심화 · 개념 + 관찰",
+    "sources": [
+      [
+        "Pod 종료 과정",
+        "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+      ],
+      [
+        "Container Lifecycle Hooks",
+        "https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/"
+      ],
+      [
+        "Endpoint 종료 관찰",
+        "https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/"
+      ],
+      [
+        "Node.js HTTP 서버",
+        "https://nodejs.org/docs/latest-v22.x/api/http.html#serverclosecallback"
+      ]
+    ],
+    "slides": [
+      {
+        "title": "무중단 배포에는 두 방향이 있습니다",
+        "lead": "새 Pod로 너무 일찍 보내지 않고, 기존 Pod를 너무 일찍 끊지 않습니다.",
+        "flow": [
+          "새 Pod 준비 확인",
+          "트래픽 대상 변경",
+          "기존 요청 완료",
+          "기존 프로세스 종료"
+        ],
+        "notes": [
+          "maxUnavailable: 0만 쓰면 무중단이 자동 보장되는 것은 아닙니다. 앱이 준비되었는지, 연결이 어디에 남아 있는지, 종료 시점에 무엇을 하는지까지 맞아야 합니다.",
+          "단일 노트북 실습에서 오류 0회를 관찰한 결과와 실제 운영에서 모든 장애에 무중단을 보장하는 것은 다릅니다. 이후 A05에서는 관찰된 요청 수와 실패 수를 근거로 표현합니다."
+        ]
+      },
+      {
+        "title": "Pod 종료는 여러 구성 요소에서 진행됩니다",
+        "lead": "Endpoint 변화와 컨테이너 종료는 완전히 직렬로 잠겨 진행되지 않습니다.",
+        "table": {
+          "headers": [
+            "진행 축",
+            "동작",
+            "의미"
+          ],
+          "rows": [
+            [
+              "클러스터 상태",
+              "Pod 종료 시작 → Endpoint에 terminating/ready 상태 반영",
+              "라우터·프록시가 대상 변화를 반영하는 데 시간 필요"
+            ],
+            [
+              "Node / kubelet",
+              "유예 시간 시작 → preStop → SIGTERM",
+              "preStop 시간도 종료 유예 시간 안에 포함"
+            ],
+            [
+              "애플리케이션",
+              "새 연결 수락 중지 → 진행 중 요청 마무리 → 종료",
+              "앱이 SIGTERM을 직접 처리해야 함"
+            ],
+            [
+              "최종 기한",
+              "유예 시간 경과 후 남은 프로세스 강제 종료",
+              "응답 중인 요청이 끊길 수 있음"
+            ]
+          ]
+        },
+        "notes": [
+          "종료 중 Endpoint는 일반적인 ready 조건이 false가 되고 terminating으로 표시됩니다. 필요에 따라 serving 조건을 참고하는 드레이닝 동작도 있지만 구현별 라우팅 정책을 확인해야 합니다.",
+          "그림을 “preStop이 끝나면 모든 로드밸런서가 업데이트되어 있다”는 보장으로 읽으면 안 됩니다. Pod 종료 처리는 분산된 시스템에 걸쳐 진행되므로 짧은 전파 지연이 있을 수 있습니다."
+        ]
+      },
+      {
+        "title": "preStop은 종료 전에 실행하는 Hook입니다",
+        "lead": "잠깐 기다리는 이유와 기다릴 시간을 각각 설명할 수 있어야 합니다.",
+        "code": "# Deployment patch, not a standalone object.\nspec:\n  minReadySeconds: 5\n  progressDeadlineSeconds: 120\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 1\n      maxUnavailable: 0\n  template:\n    spec:\n      terminationGracePeriodSeconds: 40\n      containers:\n        - name: app\n          lifecycle:\n            preStop:\n              exec:\n                command:\n                  - node\n                  - -e\n                  - \"require('node:fs').writeFileSync('/tmp/not-ready', ''); setTimeout(() => {}, 5000)\"\n",
+        "file": "advanced/shutdown-patch.yaml",
+        "notes": [
+          "이 예제는 /tmp/not-ready 플래그를 만들고 5초를 기다립니다. Readiness 실패와 라우팅 전파를 관찰할 여지를 주며, 대기 동안 앱은 이미 도착한 일반 요청을 계속 처리합니다. 5초는 학습용 시작값이지 모든 환경의 정답이 아닙니다.",
+          "terminationGracePeriodSeconds: 40은 preStop 5초에 별도로 40초를 더 준다는 뜻이 아닙니다. Hook부터 앱 종료까지 전체 예산입니다. 이 앱은 SIGTERM 이후 최대 25초 안에 연결을 마무리하도록 상한을 두어 여유를 남깁니다.",
+          "Hook의 exec 명령은 컨테이너에 있는 프로그램으로 실행됩니다. 이 이미지는 Node가 있으므로 node를 사용합니다. 다른 이미지에 shell이나 curl이 있다고 가정한 복사 설정은 실패할 수 있습니다."
+        ]
+      },
+      {
+        "title": "SIGTERM에서 즉시 exit하지 않습니다",
+        "lead": "요청을 마무리하는 주체는 애플리케이션입니다.",
+        "code": "// server.mjs의 핵심 흐름을 줄인 설명용 코드\nprocess.once('SIGTERM', async () => {\n  await app.shutdown();\n  process.exit(0);\n});\n\n// shutdown 내부에서는\n// 1. draining 상태 전환\n// 2. server.close()로 신규 연결 수락 중지\n// 3. 기존 HTTP 요청 완료 대기\n// 4. 예산 초과 시 남은 연결 정리",
+        "file": "advanced/server.mjs",
+        "notes": [
+          "JSON 배열 CMD로 node 프로세스를 직접 실행해 종료 신호를 받을 수 있게 했습니다. shell을 거쳐 실행한다면 신호 전달 방식도 확인해야 합니다.",
+          "Node.js 22의 HTTP server.close는 새 연결을 받지 않고 진행 중 연결의 종료를 기다립니다. WebSocket·업그레이드된 연결·작업 큐·DB 트랜잭션까지 이 코드가 자동으로 정리하지는 않습니다. 그 경우 각 자원의 drain 절차가 필요합니다.",
+          "실제 구현은 다운로드 파일에 있습니다. 교육용으로 15초 지연 요청과 25초 drain 상한을 두었습니다. 무한히 기다리지 않고 유예 시간 안에 종료되는지 로그로 관찰합니다."
+        ]
+      },
+      {
+        "title": "느린 요청이 끝날 때까지 기다리는지 관찰",
+        "lead": "특정 Pod를 지정해 종료 전후를 볼 수 있게 합니다.",
+        "kind": "LAB",
+        "code": "kubectl -n advanced-study patch deployment api --patch-file shutdown-patch.yaml\nkubectl -n advanced-study rollout status deployment/api\nkubectl -n advanced-study get pods -l app=advanced-api\n# 터미널 A: 선택한 실제 POD_NAME\nkubectl -n advanced-study port-forward pod/POD_NAME 19090:8080\n# 터미널 B: macOS/Linux는 curl, Windows는 curl.exe\ncurl -H \"X-Study-Id: slow-demo\" http://localhost:19090/api/slow\n# 터미널 C: slow-start 로그 확인 후 같은 Pod 삭제\nkubectl -n advanced-study logs POD_NAME --tail=20\nkubectl -n advanced-study delete pod POD_NAME --wait=false",
+        "notes": [
+          "slow-start가 기록된 뒤 삭제해야 진행 중 요청을 관찰합니다. 선택한 Pod로 직접 보내는 실습이므로 Service의 라우팅 전환 전체를 검증하는 실험은 아닙니다.",
+          "원래 처리 중인 요청의 응답, sigterm·drained 로그를 비교합니다. Pod 삭제 완료와 함께 port-forward 연결 자체가 끊어질 수 있으므로 이 실험만으로 무중단을 결론 내리지 않습니다. A05에서 Gateway를 통한 반복 요청으로 범위를 넓힙니다."
+        ],
+        "expected": "앱은 SIGTERM을 받고 진행 중 요청을 끝내려 시도합니다. 시간 초과·연결 종료가 있다면 실제 로그와 타이밍을 기록하세요."
+      },
+      {
+        "title": "sleep 30을 preStop에 넣고 grace도 30이면 충분할까요?",
+        "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+        "kind": "CHECK",
+        "answer": "Hook에서 예산 대부분을 써서 앱이 SIGTERM 이후 정리할 시간이 부족합니다. 전파 대기와 앱의 최대 처리 시간, 종료 여유를 같은 총예산 안에 배분해야 합니다."
+      }
+    ]
+  },
+  {
+    "id": "A03",
+    "track": "advanced",
+    "short": "Gateway 경로 분리",
+    "title": "/는 FE, /api는 API로",
+    "description": "Ingress의 경로 매핑을 HTTPRoute에서 직접 구성합니다.",
+    "type": "심화 · 개념 + 관찰",
+    "sources": [
+      [
+        "HTTPRoute 규칙",
+        "https://gateway-api.sigs.k8s.io/guides/user-guides/http-routing/"
+      ],
+      [
+        "Envoy Gateway URL Rewrite",
+        "https://gateway.envoyproxy.io/v1.9/tasks/traffic/http-urlrewrite/"
+      ]
+    ],
+    "slides": [
+      {
+        "title": "Ingress에서 하던 경로 분리를 옮기면",
+        "lead": "HTTPRoute의 각 rule에 경로 조건과 Service 목적지를 함께 적습니다.",
+        "table": {
+          "headers": [
+            "요청",
+            "일치 조건",
+            "목적지"
+          ],
+          "rows": [
+            [
+              "/",
+              "PathPrefix /",
+              "frontend:80"
+            ],
+            [
+              "/assets/app.js",
+              "PathPrefix /",
+              "frontend:80 (앱이 파일을 제공해야 함)"
+            ],
+            [
+              "/api/users",
+              "PathPrefix /api",
+              "api:80"
+            ],
+            [
+              "/apix",
+              "/api 조건과 불일치 → /",
+              "frontend:80"
+            ]
+          ]
+        },
+        "notes": [
+          "FE용 Service와 API용 Service를 별도로 둡니다. 브라우저는 같은 localhost:18888에 접속하고 API 버튼은 상대 경로 /api/users를 사용합니다. 브라우저 입장에서는 같은 Origin입니다.",
+          "더 긴 PathPrefix가 더 구체적인 경로로 선택됩니다. /api가 /보다 우선하는 이유는 YAML에서 먼저 적었기 때문만은 아닙니다. /api는 경로 요소 단위로 매칭되므로 /apix까지 포함하지 않습니다."
+        ]
+      },
+      {
+        "title": "두 Service로 나누는 전체 HTTPRoute",
+        "lead": "외부 도메인 조건 없이 Gateway에 연결합니다.",
+        "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: app\n  namespace: advanced-study\nspec:\n  parentRefs:\n    - name: advanced-gateway\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /api\n      backendRefs:\n        - name: api\n          port: 80\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80\n",
+        "file": "advanced/route.yaml",
+        "notes": [
+          "parentRefs는 advanced-gateway Listener에 붙입니다. 각 rules 항목의 matches는 요청 조건, backendRefs는 선택된 Service를 뜻합니다. 같은 rule 안 여러 match 항목은 대안(OR)이고 한 match의 path·method·headers 조건은 함께 만족해야 합니다.",
+          "backendRefs.port는 컨테이너 8080이 아니라 Service의 80입니다. 이 예제는 Route와 Service가 같은 advanced-study Namespace에 있으며 다른 Namespace 참조는 ReferenceGrant 같은 추가 설정이 필요합니다."
+        ]
+      },
+      {
+        "title": "프런트엔드와 API가 정말 분리되는지 확인",
+        "lead": "A01의 두 Deployment·Service와 기본 과정의 eg GatewayClass가 필요합니다.",
+        "kind": "LAB",
+        "code": "kubectl apply -f gateway.yaml\nkubectl apply -f route.yaml\nkubectl -n advanced-study describe httproute app\nkubectl -n envoy-gateway-system get svc -l gateway.envoyproxy.io/owning-gateway-namespace=advanced-study,gateway.envoyproxy.io/owning-gateway-name=advanced-gateway\n# 위 출력의 실제 프록시 Service 이름으로 교체\nkubectl -n envoy-gateway-system port-forward svc/ENVOY_SERVICE_NAME 18888:80",
+        "file": "advanced/gateway.yaml",
+        "notes": [
+          "localhost:18888에서 FE 화면을 열고 API 호출 버튼을 누릅니다. 응답의 role이 api인지 확인하세요. 브라우저 주소가 바뀌지 않아도 내부 서비스는 다를 수 있습니다.",
+          "localhost:18888/apix는 frontend로 전달되지만 이 단순 샘플 앱에 해당 화면이 없어서 404를 반환합니다. 목적지 선택과 목적지 앱의 응답 코드를 구분하는 실험입니다."
+        ],
+        "expected": "/는 HTML, /api/users는 role: api·path: /api/users인 JSON을 반환합니다."
+      },
+      {
+        "title": "Rewrite를 설정해야 경로가 바뀝니다",
+        "lead": "API가 /users만 처리한다면 /api 접두어를 제거하도록 명시합니다.",
+        "code": "apiVersion: gateway.networking.k8s.io/v1\nkind: HTTPRoute\nmetadata:\n  name: app\n  namespace: advanced-study\nspec:\n  parentRefs:\n    - name: advanced-gateway\n  rules:\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /api\n      filters:\n        - type: URLRewrite\n          urlRewrite:\n            path:\n              type: ReplacePrefixMatch\n              replacePrefixMatch: /\n      backendRefs:\n        - name: api\n          port: 80\n    - matches:\n        - path:\n            type: PathPrefix\n            value: /\n      backendRefs:\n        - name: frontend\n          port: 80",
+        "file": "advanced/route-rewrite.yaml",
+        "notes": [
+          "kubectl apply -f route-rewrite.yaml을 적용하면 같은 HTTPRoute app이 바뀝니다. ReplacePrefixMatch로 /api/users를 /users로 전달합니다. 브라우저에는 /api/users가 남습니다. HTTP redirect가 아니라 내부 전달 경로 변경입니다.",
+          "우리 샘플 API는 두 경로를 모두 구현해서 응답의 path가 어떻게 바뀌는지 비교할 수 있습니다. 실제 API가 어느 경로를 받는지 먼저 확인하고 Rewrite 여부를 선택합니다.",
+          "테스트 후 kubectl apply -f route.yaml로 원래 설정을 복원합니다. URLRewrite와 RequestRedirect 같은 필터는 조합 제한과 구현별 지원을 확인해야 합니다."
+        ]
+      },
+      {
+        "title": "라우팅 규칙을 읽는 순서",
+        "lead": "붙일 입구 → 요청 조건 → 필터 → 목적지 → 적용 상태 순으로 점검합니다.",
+        "flow": [
+          "parentRefs",
+          "matches",
+          "filters",
+          "backendRefs",
+          "Accepted / ResolvedRefs"
+        ],
+        "notes": [
+          "hostnames가 있으면 접속 호스트 조건도 일치해야 합니다. Service 이름 오타는 ResolvedRefs, Gateway에 붙을 수 있는지 여부는 Accepted 같은 상태와 이벤트를 확인합니다.",
+          "UI에서 404가 나면 앱이 만든 404인지 Gateway에서 일치하는 Route가 없는지 구분해야 합니다. 다음 챕터의 접근 로그에서 upstream과 status를 함께 보면 원인 범위를 좁힐 수 있습니다."
+        ]
+      },
+      {
+        "title": "GET /api/users는 / 규칙에도 맞는데 왜 API로 가나요?",
+        "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+        "kind": "CHECK",
+        "answer": "PathPrefix 매칭에서는 더 긴 /api 경로가 /보다 구체적이기 때문입니다. 같은 구체성의 복잡한 규칙에는 추가 우선순위가 있으므로 단순히 위에서부터 첫 줄을 고르는 규칙으로 이해하지 않습니다."
+      }
+    ]
+  },
+  {
+    "id": "A04",
+    "track": "advanced",
+    "short": "Access Log · 헤더",
+    "title": "요청 하나를 로그로 따라가기",
+    "description": "Envoy Gateway 접근 로그에 필요한 헤더만 기록합니다.",
+    "type": "심화 · 개념 + 관찰",
+    "sources": [
+      [
+        "Envoy Gateway 접근 로그",
+        "https://gateway.envoyproxy.io/v1.9/tasks/observability/proxy-accesslog/"
+      ],
+      [
+        "EnvoyProxy 스키마",
+        "https://gateway.envoyproxy.io/v1.9/api/extension_types/"
+      ],
+      [
+        "EnvoyProxy 연결",
+        "https://gateway.envoyproxy.io/v1.9/tasks/operations/customize-envoyproxy/"
+      ]
+    ],
+    "slides": [
+      {
+        "title": "앱 로그와 Gateway 접근 로그는 다릅니다",
+        "lead": "컨트롤러 설정 로그까지 세 가지를 구분해야 합니다.",
+        "cards": [
+          [
+            "Controller 로그",
+            "Gateway/HTTPRoute를 읽고 설정을 만드는 과정."
+          ],
+          [
+            "Envoy Proxy 접근 로그",
+            "실제 요청·응답·시간·upstream을 기록."
+          ],
+          [
+            "앱 로그",
+            "핸들러 실행과 업무 처리, 종료 상태를 기록."
+          ]
+        ],
+        "notes": [
+          "kubectl logs deployment/envoy-gateway는 관리 컨트롤러 로그입니다. 요청마다 남는 접근 로그를 보려면 해당 Gateway가 만든 Envoy 프록시 Pod를 찾아야 합니다.",
+          "이 과정은 Envoy Gateway v1.9 구현에 한정한 예제입니다. HTTPRoute 표준 필드에 accessLog를 넣는 방식이 아닙니다. 다른 구현체라면 별도 로그 설정 API와 형식을 확인합니다."
+        ]
+      },
+      {
+        "title": "JSON 접근 로그에 요청 헤더 넣기",
+        "lead": "EnvoyProxy의 telemetry.accessLog로 출력 형식을 정합니다.",
+        "code": "# Envoy Gateway v1.9 extension. Not a standard Gateway API resource.\napiVersion: gateway.envoyproxy.io/v1alpha1\nkind: EnvoyProxy\nmetadata:\n  name: advanced-logging\n  namespace: advanced-study\nspec:\n  telemetry:\n    accessLog:\n      settings:\n        - matches:\n            - \"true\"\n          format:\n            type: JSON\n            json:\n              time: \"%START_TIME%\"\n              method: \"%REQ(:METHOD)%\"\n              path: \"%REQ(:PATH)%\"\n              status: \"%RESPONSE_CODE%\"\n              duration_ms: \"%DURATION%\"\n              upstream: \"%UPSTREAM_HOST%\"\n              response_flags: \"%RESPONSE_FLAGS%\"\n              request_id: \"%REQ(X-REQUEST-ID)%\"\n              study_id: \"%REQ(X-STUDY-ID)%\"\n          sinks:\n            - type: File\n              file:\n                path: /dev/stdout\n",
+        "file": "advanced/access-log.yaml",
+        "notes": [
+          "%REQ(X-STUDY-ID)%는 들어온 요청의 X-Study-Id 헤더를 읽는 Envoy 포맷 연산자입니다. 이 필드를 추가한다고 요청에 헤더가 새로 생기지는 않습니다. 클라이언트가 보내거나 별도 필터가 설정해야 합니다.",
+          "File sink를 /dev/stdout으로 설정해 kubectl logs로 확인합니다. 사용자 정의 settings는 기본 로그 설정을 대체할 수 있으므로 필요한 method·status·duration·upstream 필드를 함께 넣습니다.",
+          "path에는 쿼리 문자열이 포함될 수 있습니다. 이 실습은 비밀 없는 고정 경로만 사용합니다. 운영에서는 쿼리의 민감 값과 Authorization·Cookie·토큰·개인정보를 기록하지 않도록 출력 필드와 보관 정책을 설계하세요."
+        ]
+      },
+      {
+        "title": "이 Gateway에만 로그 설정을 연결합니다",
+        "lead": "기본 과정의 eg GatewayClass 전체를 수정하지 않습니다.",
+        "kind": "LAB",
+        "code": "kubectl apply -f access-log.yaml\nkubectl -n advanced-study patch gateway advanced-gateway --type=merge --patch-file logging-patch.yaml\nkubectl -n advanced-study get gateway advanced-gateway -o yaml\nkubectl -n advanced-study get envoyproxy advanced-logging -o yaml",
+        "file": "advanced/logging-patch.yaml",
+        "notes": [
+          "Gateway의 spec.infrastructure.parametersRef가 같은 Namespace의 EnvoyProxy를 참조합니다. 기본 과정에 사용한 다른 Gateway까지 영향을 주지 않도록 Gateway 수준 연결을 사용합니다.",
+          "Envoy Gateway의 CRD·버전이 이 설정을 지원해야 합니다. Gateway/EnvoyProxy의 상태와 Controller 이벤트를 확인한 뒤 프록시 설정 반영을 기다립니다. 프록시 Pod가 교체되면 포트 포워딩을 다시 열어야 할 수 있습니다."
+        ]
+      },
+      {
+        "title": "헤더를 보내고 양쪽 로그에서 찾기",
+        "lead": "Windows PowerShell에서는 curl 대신 curl.exe를 사용하세요.",
+        "kind": "LAB",
+        "code": "curl -H \"X-Study-Id: lab-42\" http://localhost:18888/api/users\nkubectl -n envoy-gateway-system get pods -l gateway.envoyproxy.io/owning-gateway-namespace=advanced-study,gateway.envoyproxy.io/owning-gateway-name=advanced-gateway\n# 위 출력의 실제 Pod 이름 사용\nkubectl -n envoy-gateway-system logs PROXY_POD_NAME -c envoy --since=5m\nkubectl -n advanced-study logs -l app=advanced-api --all-containers=true --prefix=true --since=5m",
+        "notes": [
+          "Proxy의 study_id와 앱 로그의 study_id에서 lab-42를 찾습니다. 앱 로그에는 path·version·Pod 정보가 있으므로 요청이 어느 버전으로 전달됐는지도 연결할 수 있습니다.",
+          "X-Request-ID는 프록시 정책에 따라 생성·정규화될 수 있습니다. 이번 실습은 제어 가능한 X-Study-Id를 상관관계 확인에 사용합니다. 클라이언트가 입력하는 헤더는 인증된 사용자 식별자가 아니며 신뢰하면 안 됩니다."
+        ],
+        "expected": "JSON 접근 로그와 앱 로그에서 lab-42를 찾아 같은 요청의 경로를 설명할 수 있습니다.",
+        "trouble": "envoy 컨테이너 이름이 다르면 kubectl get pod PROXY_POD_NAME -o yaml로 확인합니다. 실제 프록시 Pod인지, 로그 연결 참조가 올바른지, 새 요청을 보냈는지 확인하세요."
+      },
+      {
+        "title": "404·503 하나만 보고 원인을 단정하지 않습니다",
+        "lead": "응답 코드와 upstream, response_flags, 앱 로그를 함께 읽습니다.",
+        "table": {
+          "headers": [
+            "관찰",
+            "추가 확인",
+            "가능한 원인"
+          ],
+          "rows": [
+            [
+              "upstream 없이 404",
+              "Host·경로·Accepted 상태",
+              "Route 매칭 문제 등"
+            ],
+            [
+              "upstream과 앱의 404 로그",
+              "앱이 실제 받은 path",
+              "Rewrite 또는 앱 경로 문제"
+            ],
+            [
+              "upstream 연결 실패·503 등",
+              "EndpointSlice·Readiness·대상 포트",
+              "준비된 대상 없음 또는 연결 실패"
+            ]
+          ]
+        },
+        "notes": [
+          "표는 진단 시작점이지 상태 코드의 보편적인 일대일 대응표가 아닙니다. 프록시 버전·정책·필터에 따라 응답이 달라질 수 있습니다.",
+          "실험: 헤더 없이 한 번, lab-42를 넣고 한 번 요청해 결과를 비교합니다. 누락된 헤더는 형식에 따라 - 또는 빈 값 등으로 보일 수 있습니다. JSON 구조를 유지하면 제어문자와 구분자 문제를 줄일 수 있지만 민감 정보 수집 문제까지 해결되지는 않습니다."
+        ]
+      },
+      {
+        "title": "X-Study-Id를 로그에 남겼으면 사용자 인증에도 써도 될까요?",
+        "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+        "kind": "CHECK",
+        "answer": "아닙니다. 클라이언트가 바꿀 수 있는 상관관계용 값입니다. 요청을 연결해 찾는 용도와 인증·권한 판단은 별도입니다."
+      }
+    ]
+  },
+  {
+    "id": "A05",
+    "track": "advanced",
+    "short": "배포 중 요청 관찰",
+    "title": "무중단이라는 주장을 검증하기",
+    "description": "실패 수·응답 시간·종료 로그를 함께 기록합니다.",
+    "type": "심화 · 개념 + 관찰",
+    "sources": [
+      [
+        "Pod 종료 과정",
+        "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+      ],
+      [
+        "Probe 설정",
+        "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/"
+      ],
+      [
+        "Endpoint 종료 관찰",
+        "https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/"
+      ]
+    ],
+    "slides": [
+      {
+        "title": "측정할 요청과 성공 기준을 정합니다",
+        "lead": "짧은 GET 요청과 긴 요청, 새 연결과 진행 중 연결을 구분합니다.",
+        "notes": [
+          "A01~A04 환경에서 시작합니다. 기본 3개 과제와 별개로 심화 수업의 관찰 실습입니다. 운영 환경 부하 테스트나 장애 주입을 실행하는 과제가 아닙니다.",
+          "성공 기준 예: 반복 GET 120회 중 상태 코드 200의 수, 네트워크 오류 수, 최댓값 응답 시간, 배포 전후 버전·Pod 변화입니다. 0회 실패했다면 “이 조건의 관측 구간에서 0회”라고 보고합니다."
+        ]
+      },
+      {
+        "title": "API에 종료 설정을 적용합니다",
+        "lead": "정상으로 준비된 이전 Pod가 있는 상태에서 실험을 시작합니다.",
+        "kind": "LAB",
+        "code": "kubectl apply -f route.yaml\nkubectl -n advanced-study patch deployment api --patch-file shutdown-patch.yaml\nkubectl -n advanced-study rollout status deployment/api\n# 터미널 A: Gateway의 localhost:18888 포트 포워딩 유지\n# 터미널 B\nnode observe.mjs\n# 터미널 C: 관찰이 시작된 후\nkubectl -n advanced-study set env deployment/api APP_VERSION=v2\nkubectl -n advanced-study rollout status deployment/api",
+        "file": "advanced/observe.mjs",
+        "notes": [
+          "설정값만 바꾸어 Pod 템플릿 변경에 따른 Rollout을 유발합니다. 실제 새 이미지 코드 배포와 동일하다고 주장하지 않고, 교체 및 종료 동작에 집중합니다.",
+          "observe.mjs는 120회 요청하고 상태·버전·Pod·시간을 출력합니다. 느린 응답·타임아웃에 따라 총 실행 시간은 약 1분보다 길어질 수 있습니다. 요청마다 X-Study-Id로 로그 상관관계를 남깁니다."
+        ],
+        "expected": "v1·v2 응답과 Pod 이름 변경이 보이며 마지막 줄에 total·failed·max_ms가 출력됩니다."
+      },
+      {
+        "title": "배포 설정이 보장하는 범위를 구분합니다",
+        "lead": "앱·프록시·Node·데이터 계층의 실패를 한 옵션으로 해결할 수는 없습니다.",
+        "table": {
+          "headers": [
+            "설정",
+            "도움이 되는 것",
+            "자동 보장하지 않는 것"
+          ],
+          "rows": [
+            [
+              "maxUnavailable: 0",
+              "배포 중 가용 수 유지 의도",
+              "노드 장애·외부 LB 전파·모든 요청의 성공"
+            ],
+            [
+              "minReadySeconds: 5",
+              "Ready 상태 유지 후 Available 판단",
+              "모든 사용자 기능의 정상"
+            ],
+            [
+              "preStop + SIGTERM",
+              "종료 준비와 진행 중 요청 완료 기회",
+              "강제 종료·OOM·프로세스 크래시의 처리 완료"
+            ],
+            [
+              "progressDeadlineSeconds",
+              "배포 지연 상태 보고",
+              "자동 롤백 실행"
+            ]
+          ]
+        },
+        "notes": [
+          "DB 마이그레이션과 정적 파일 호환성, 연결 풀, 외부 API 타임아웃도 실제 서비스의 무중단 조건에 들어갑니다. WebSocket은 재연결·메시지 재개 정책을 별도로 검토해야 합니다."
+        ]
+      },
+      {
+        "title": "관찰 결과를 보고서로 남기기",
+        "lead": "잘된 결과뿐 아니라 실패한 요청의 원인을 좁힌 과정을 기록합니다.",
+        "bullets": [
+          "종료 예산: Hook·앱 처리·여유 시간의 합을 설명합니다.",
+          "실패가 있으면 study_id로 Proxy 로그와 앱 로그를 연결합니다.",
+          "같은 조건으로 다시 실행하고 달라진 점과 한계를 적습니다."
+        ],
+        "notes": [
+          "보고서에는 적용한 YAML, 실행 시각, 요청 개수와 실패 수, 버전 전환 로그를 넣습니다. 포트 포워딩 자체가 끊긴 경우와 API Pod가 요청을 중간에 끊은 경우를 분리하세요.",
+          "종료 후 정상 상태를 유지하려면 Deployment의 APP_VERSION을 최종 파일에도 반영하거나 kubectl apply -f apps.yaml로 v1으로 복원합니다. 복원도 Rollout이므로 완료를 확인합니다."
+        ]
+      },
+      {
+        "title": "재시도가 있으니 POST도 무조건 다시 보내면 될까요?",
+        "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+        "kind": "CHECK",
+        "answer": "처리는 성공했지만 응답만 잃은 경우 중복 결제·중복 주문이 생길 수 있습니다. 변경 요청에는 멱등성 키·중복 제거·결과 조회 같은 설계가 필요합니다. 재시도 횟수·backoff·timeout도 제한해야 합니다."
+      }
+    ]
+  },
+  {
+    "id": "A06",
+    "track": "advanced",
+    "short": "Zone · Region 장애 전환",
+    "title": "가까운 대상으로, 살아 있는 Region으로",
+    "description": "Service 위치 선호와 글로벌 장애 전환을 구분합니다.",
+    "type": "심화 · 개념 + 관찰",
+    "sources": [
+      [
+        "Service 트래픽 정책",
+        "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+      ],
+      [
+        "여러 Zone에서 실행",
+        "https://kubernetes.io/docs/setup/best-practices/multiple-zones/"
+      ],
+      [
+        "글로벌 라우팅과 새 연결",
+        "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+      ],
+      [
+        "비정상 Endpoint의 failover",
+        "https://docs.aws.amazon.com/global-accelerator/latest/dg/about-endpoints-endpoint-weights.unhealthy-endpoints.html"
+      ]
+    ],
+    "slides": [
+      {
+        "title": "세 범위를 먼저 나눕니다",
+        "lead": "Node·Zone·Region은 같은 단위가 아닙니다.",
+        "cards": [
+          [
+            "Node",
+            "Pod가 실행되는 컴퓨터."
+          ],
+          [
+            "Zone",
+            "Region 안의 장애 격리 구역. 하나의 클러스터가 여러 Zone에 걸칠 수 있습니다."
+          ],
+          [
+            "Region",
+            "지역 단위. 이 예시는 Region마다 별도 클러스터가 있다고 가정합니다."
+          ]
+        ],
+        "notes": [
+          "두 Region에 각각 Ingress·Service·Deployment를 두는 구성에서도 진입점 선택과 장애 전환은 별도 계층이 담당합니다. trafficDistribution은 이 두 클러스터를 자동으로 연결하는 기능이 아닙니다.",
+          "Deployment와 ReplicaSet은 요청 경로의 홉이 아닙니다. Region A의 Ingress/Gateway → Service 대상 → Pod로 요청이 흐르고, Deployment는 Pod들을 관리합니다."
+        ]
+      },
+      {
+        "title": "두 Region에 각각 구성해도 남는 운영 과제",
+        "lead": "Region A와 B에 Ingress → Service → Pod가 각각 있는 구성을 비교합니다.",
+        "cards": [
+          [
+            "Region A",
+            "Ingress A → Service A → Pod A (Deployment A가 관리)"
+          ],
+          [
+            "Region B",
+            "Ingress B → Service B → Pod B (Deployment B가 관리)"
+          ]
+        ],
+        "table": {
+          "headers": [
+            "두 Region 구성의 운영 과제",
+            "왜 별도 설계가 필요한가"
+          ],
+          "rows": [
+            [
+              "진입점 선택",
+              "각 Ingress는 자기 클러스터의 경로를 처리합니다. 사용자 요청을 어느 Region으로 보낼지는 상위 계층에서 정합니다."
+            ],
+            [
+              "장애 전환",
+              "A의 Service가 B 클러스터의 같은 이름 Service를 자동으로 찾아주지는 않습니다. 글로벌 상태 확인과 전환 정책이 필요합니다."
+            ],
+            [
+              "설정·배포 일치",
+              "Ingress 경로, 인증서, Service 포트, 앱 버전이 두 Region에서 달라지지 않게 관리해야 합니다."
+            ],
+            [
+              "용량·데이터",
+              "B가 A의 부하까지 받을 용량과 데이터·세션 접근성을 준비해야 합니다."
+            ],
+            [
+              "전환 중 요청",
+              "감지 지연, DNS 캐시(사용 시), 기존 연결 종료와 재시도를 고려합니다."
+            ]
+          ]
+        },
+        "notes": [
+          "두 Region에 배포하면 지역 장애를 분리할 기반이 생깁니다. 다만 자원 두 벌을 만드는 것만으로 자동 장애 전환이 완성되지는 않습니다. 이 설명은 Region마다 독립 클러스터가 있는 구성을 기준으로 합니다.",
+          "trafficDistribution 이전에도 이런 멀티 Region 구성은 가능했습니다. trafficDistribution을 추가해도 글로벌 라우팅, 설정 동기화, 데이터 복제 문제가 한꺼번에 해결되지는 않습니다. 같은 Service의 Endpoint 위치 선호와 Region 선택은 별도의 범위입니다.",
+          "Deployment는 요청이 통과하는 네트워크 장비가 아니라 Pod를 관리하는 리소스입니다. 그림에서는 요청 경로와 관리 관계를 구분합니다."
+        ],
+        "sources": [
+          [
+            "Service 트래픽 정책",
+            "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+          ],
+          [
+            "글로벌 라우팅의 역할",
+            "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+          ]
+        ]
+      },
+      {
+        "title": "Service 안에서 가까운 Endpoint 선호",
+        "lead": "같은 클러스터의 Service가 다른 Zone의 준비된 Endpoint도 가지고 있다고 가정합니다.",
+        "networkAnimation": "zone",
+        "notes": [
+          "재생을 누르면 Zone A의 호출자가 정상 상태에서 같은 Zone의 Endpoint를 선호합니다. Zone A 대상 장애를 누르면 감지·Endpoint 반영 전 실패와 이후 Zone B fallback을 비교합니다.",
+          "이 시뮬레이션은 호출자가 살아 있고 Zone A의 대상만 사용할 수 없어진 상황입니다. 호출자까지 사라지는 전체 Zone 장애와 다릅니다. internalTrafficPolicy=Local 같은 엄격한 제한이 없고, 프록시가 위치 선호를 지원하며 Zone B에 준비된 대상이 있다고 가정합니다.",
+          "점 하나는 관찰하기 쉽게 만든 한 번의 요청 시도입니다. 실제 Service 데이터 경로는 연결 단위 선택·연결 재사용 등 구현 차이가 있습니다. 시간과 분산 비율은 실측값이 아닙니다."
+        ]
+      },
+      {
+        "title": "Region 장애는 글로벌 진입점에서 전환",
+        "lead": "지역별 클러스터 바깥의 라우팅 계층이 살아 있는 Region을 선택합니다.",
+        "networkAnimation": "region",
+        "notes": [
+          "정상 상태는 두 Region으로 요청을 나누는 개념 예시입니다. Region A 장애 버튼을 누르면 감지 전의 실패를 먼저 보여주고, 글로벌 헬스 체크 반영 후 새 요청이 B로 가는 흐름을 보여줍니다. 균등 비율은 설명용이며 실제 정책·지연·용량에 따라 달라집니다.",
+          "이 동작은 Service trafficDistribution이 제공하는 멀티 Region 전환이 아닙니다. 글로벌 로드밸런서 또는 DNS 기반 전환 등 별도 구성이 필요합니다. DNS 방식이라면 TTL·캐시가 추가로 작용합니다.",
+          "기존 TCP 연결이나 이미 전송 중인 요청이 자동으로 B에 옮겨지는 것은 아닙니다. 안전한 GET 재시도를 켜면 실패한 논리 요청을 B에서 다시 처리하는 경로를 볼 수 있습니다. 실패 시도 기록은 성공 후에도 남깁니다."
+        ]
+      },
+      {
+        "title": "전환 이후 서비스가 가능하려면",
+        "lead": "트래픽의 목적지만 바꿔서는 데이터와 상태가 따라오지 않습니다.",
+        "table": {
+          "headers": [
+            "조건",
+            "확인할 내용"
+          ],
+          "rows": [
+            [
+              "B Region 용량",
+              "A에서 넘어온 트래픽을 처리할 준비·여유 용량"
+            ],
+            [
+              "데이터",
+              "복제 지연·쓰기 일관성·복구 가능한 데이터 시점"
+            ],
+            [
+              "세션·파일",
+              "Pod 메모리에만 있는 세션, 업로드 파일의 접근 가능성"
+            ],
+            [
+              "재시도",
+              "멱등성·중복 제거·시간 제한·재연결"
+            ],
+            [
+              "관측",
+              "감지 지연·전환 시간·실패율·최종 처리 결과"
+            ]
+          ]
+        },
+        "notes": [
+          "유실을 줄이는 목표를 세울 수 있지만 장애 감지 전과 진행 중 요청의 실패를 항상 0으로 만들 수 있다고 단정하지 않습니다. 처리 완료를 보장하려면 큐·저장·재시도·멱등성 같은 애플리케이션 수준 설계까지 필요합니다.",
+          "Region B도 비정상이면 이 그림의 전제 자체가 깨집니다. 실제 글로벌 제품의 fail-open/동시 장애 동작은 해당 서비스 문서를 확인하세요. 이 예시는 정상 B가 있는 상황에만 한정합니다."
+        ]
+      },
+      {
+        "title": "두 Region에 각각 배포하고 trafficDistribution을 넣으면 자동으로 Region 장애에 견디나요?",
+        "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+        "kind": "CHECK",
+        "answer": "아닙니다. 다른 Region의 서비스·데이터·용량과 글로벌 진입점의 상태 확인·전환 정책이 필요합니다. trafficDistribution은 같은 Service가 사용할 수 있는 Endpoint 중 위치 선호를 표현합니다."
       }
     ]
   }

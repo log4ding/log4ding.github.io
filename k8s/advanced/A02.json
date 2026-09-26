@@ -1,0 +1,118 @@
+{
+  "id": "A02",
+  "track": "advanced",
+  "short": "preStop · 무중단 배포",
+  "title": "잘 시작하고, 잘 종료하기",
+  "description": "새 Pod의 준비와 기존 Pod의 요청 마무리를 함께 설계합니다.",
+  "type": "심화 · 개념 + 관찰",
+  "sources": [
+    [
+      "Pod 종료 과정",
+      "https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/"
+    ],
+    [
+      "Container Lifecycle Hooks",
+      "https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/"
+    ],
+    [
+      "Endpoint 종료 관찰",
+      "https://kubernetes.io/docs/tutorials/services/pods-and-endpoint-termination-flow/"
+    ],
+    [
+      "Node.js HTTP 서버",
+      "https://nodejs.org/docs/latest-v22.x/api/http.html#serverclosecallback"
+    ]
+  ],
+  "slides": [
+    {
+      "title": "무중단 배포에는 두 방향이 있습니다",
+      "lead": "새 Pod로 너무 일찍 보내지 않고, 기존 Pod를 너무 일찍 끊지 않습니다.",
+      "flow": [
+        "새 Pod 준비 확인",
+        "트래픽 대상 변경",
+        "기존 요청 완료",
+        "기존 프로세스 종료"
+      ],
+      "notes": [
+        "maxUnavailable: 0만 쓰면 무중단이 자동 보장되는 것은 아닙니다. 앱이 준비되었는지, 연결이 어디에 남아 있는지, 종료 시점에 무엇을 하는지까지 맞아야 합니다.",
+        "단일 노트북 실습에서 오류 0회를 관찰한 결과와 실제 운영에서 모든 장애에 무중단을 보장하는 것은 다릅니다. 이후 A05에서는 관찰된 요청 수와 실패 수를 근거로 표현합니다."
+      ]
+    },
+    {
+      "title": "Pod 종료는 여러 구성 요소에서 진행됩니다",
+      "lead": "Endpoint 변화와 컨테이너 종료는 완전히 직렬로 잠겨 진행되지 않습니다.",
+      "table": {
+        "headers": [
+          "진행 축",
+          "동작",
+          "의미"
+        ],
+        "rows": [
+          [
+            "클러스터 상태",
+            "Pod 종료 시작 → Endpoint에 terminating/ready 상태 반영",
+            "라우터·프록시가 대상 변화를 반영하는 데 시간 필요"
+          ],
+          [
+            "Node / kubelet",
+            "유예 시간 시작 → preStop → SIGTERM",
+            "preStop 시간도 종료 유예 시간 안에 포함"
+          ],
+          [
+            "애플리케이션",
+            "새 연결 수락 중지 → 진행 중 요청 마무리 → 종료",
+            "앱이 SIGTERM을 직접 처리해야 함"
+          ],
+          [
+            "최종 기한",
+            "유예 시간 경과 후 남은 프로세스 강제 종료",
+            "응답 중인 요청이 끊길 수 있음"
+          ]
+        ]
+      },
+      "notes": [
+        "종료 중 Endpoint는 일반적인 ready 조건이 false가 되고 terminating으로 표시됩니다. 필요에 따라 serving 조건을 참고하는 드레이닝 동작도 있지만 구현별 라우팅 정책을 확인해야 합니다.",
+        "그림을 “preStop이 끝나면 모든 로드밸런서가 업데이트되어 있다”는 보장으로 읽으면 안 됩니다. Pod 종료 처리는 분산된 시스템에 걸쳐 진행되므로 짧은 전파 지연이 있을 수 있습니다."
+      ]
+    },
+    {
+      "title": "preStop은 종료 전에 실행하는 Hook입니다",
+      "lead": "잠깐 기다리는 이유와 기다릴 시간을 각각 설명할 수 있어야 합니다.",
+      "code": "# Deployment patch, not a standalone object.\nspec:\n  minReadySeconds: 5\n  progressDeadlineSeconds: 120\n  strategy:\n    type: RollingUpdate\n    rollingUpdate:\n      maxSurge: 1\n      maxUnavailable: 0\n  template:\n    spec:\n      terminationGracePeriodSeconds: 40\n      containers:\n        - name: app\n          lifecycle:\n            preStop:\n              exec:\n                command:\n                  - node\n                  - -e\n                  - \"require('node:fs').writeFileSync('/tmp/not-ready', ''); setTimeout(() => {}, 5000)\"\n",
+      "file": "advanced/shutdown-patch.yaml",
+      "notes": [
+        "이 예제는 /tmp/not-ready 플래그를 만들고 5초를 기다립니다. Readiness 실패와 라우팅 전파를 관찰할 여지를 주며, 대기 동안 앱은 이미 도착한 일반 요청을 계속 처리합니다. 5초는 학습용 시작값이지 모든 환경의 정답이 아닙니다.",
+        "terminationGracePeriodSeconds: 40은 preStop 5초에 별도로 40초를 더 준다는 뜻이 아닙니다. Hook부터 앱 종료까지 전체 예산입니다. 이 앱은 SIGTERM 이후 최대 25초 안에 연결을 마무리하도록 상한을 두어 여유를 남깁니다.",
+        "Hook의 exec 명령은 컨테이너에 있는 프로그램으로 실행됩니다. 이 이미지는 Node가 있으므로 node를 사용합니다. 다른 이미지에 shell이나 curl이 있다고 가정한 복사 설정은 실패할 수 있습니다."
+      ]
+    },
+    {
+      "title": "SIGTERM에서 즉시 exit하지 않습니다",
+      "lead": "요청을 마무리하는 주체는 애플리케이션입니다.",
+      "code": "// server.mjs의 핵심 흐름을 줄인 설명용 코드\nprocess.once('SIGTERM', async () => {\n  await app.shutdown();\n  process.exit(0);\n});\n\n// shutdown 내부에서는\n// 1. draining 상태 전환\n// 2. server.close()로 신규 연결 수락 중지\n// 3. 기존 HTTP 요청 완료 대기\n// 4. 예산 초과 시 남은 연결 정리",
+      "file": "advanced/server.mjs",
+      "notes": [
+        "JSON 배열 CMD로 node 프로세스를 직접 실행해 종료 신호를 받을 수 있게 했습니다. shell을 거쳐 실행한다면 신호 전달 방식도 확인해야 합니다.",
+        "Node.js 22의 HTTP server.close는 새 연결을 받지 않고 진행 중 연결의 종료를 기다립니다. WebSocket·업그레이드된 연결·작업 큐·DB 트랜잭션까지 이 코드가 자동으로 정리하지는 않습니다. 그 경우 각 자원의 drain 절차가 필요합니다.",
+        "실제 구현은 다운로드 파일에 있습니다. 교육용으로 15초 지연 요청과 25초 drain 상한을 두었습니다. 무한히 기다리지 않고 유예 시간 안에 종료되는지 로그로 관찰합니다."
+      ]
+    },
+    {
+      "title": "느린 요청이 끝날 때까지 기다리는지 관찰",
+      "lead": "특정 Pod를 지정해 종료 전후를 볼 수 있게 합니다.",
+      "kind": "LAB",
+      "code": "kubectl -n advanced-study patch deployment api --patch-file shutdown-patch.yaml\nkubectl -n advanced-study rollout status deployment/api\nkubectl -n advanced-study get pods -l app=advanced-api\n# 터미널 A: 선택한 실제 POD_NAME\nkubectl -n advanced-study port-forward pod/POD_NAME 19090:8080\n# 터미널 B: macOS/Linux는 curl, Windows는 curl.exe\ncurl -H \"X-Study-Id: slow-demo\" http://localhost:19090/api/slow\n# 터미널 C: slow-start 로그 확인 후 같은 Pod 삭제\nkubectl -n advanced-study logs POD_NAME --tail=20\nkubectl -n advanced-study delete pod POD_NAME --wait=false",
+      "notes": [
+        "slow-start가 기록된 뒤 삭제해야 진행 중 요청을 관찰합니다. 선택한 Pod로 직접 보내는 실습이므로 Service의 라우팅 전환 전체를 검증하는 실험은 아닙니다.",
+        "원래 처리 중인 요청의 응답, sigterm·drained 로그를 비교합니다. Pod 삭제 완료와 함께 port-forward 연결 자체가 끊어질 수 있으므로 이 실험만으로 무중단을 결론 내리지 않습니다. A05에서 Gateway를 통한 반복 요청으로 범위를 넓힙니다."
+      ],
+      "expected": "앱은 SIGTERM을 받고 진행 중 요청을 끝내려 시도합니다. 시간 초과·연결 종료가 있다면 실제 로그와 타이밍을 기록하세요."
+    },
+    {
+      "title": "sleep 30을 preStop에 넣고 grace도 30이면 충분할까요?",
+      "lead": "먼저 직접 설명한 뒤 해설과 비교해 보세요.",
+      "kind": "CHECK",
+      "answer": "Hook에서 예산 대부분을 써서 앱이 SIGTERM 이후 정리할 시간이 부족합니다. 전파 대기와 앱의 최대 처리 시간, 종료 여유를 같은 총예산 안에 배분해야 합니다."
+    }
+  ]
+}

@@ -47,6 +47,55 @@
       ]
     },
     {
+      "title": "YAML을 두 구역으로 나눠 읽기",
+      "lead": "Deployment 설정과 Pod 템플릿 설정의 위치를 구분합니다.",
+      "kind": "READ & UNDERSTAND",
+      "table": {
+        "headers": [
+          "필드",
+          "읽는 방법",
+          "수정했을 때"
+        ],
+        "rows": [
+          [
+            "spec.replicas",
+            "같은 역할의 Pod를 몇 개 유지할까",
+            "복제 개수 조정"
+          ],
+          [
+            "spec.selector.matchLabels",
+            "관리 대상 Pod를 고르는 조건",
+            "생성 후 보통 변경할 수 없는 식별 조건"
+          ],
+          [
+            "spec.template.metadata.labels",
+            "새 Pod에 붙일 이름표",
+            "Selector와 Service의 선택 조건에 맞춰 작성"
+          ],
+          [
+            "spec.template.spec.containers",
+            "실제로 실행할 이미지·환경 변수·포트",
+            "템플릿 변경으로 새 Rollout 진행"
+          ]
+        ]
+      },
+      "notes": [
+        "바깥쪽 metadata.name: frontend는 Deployment의 이름입니다. 안쪽 template.metadata.labels.app: frontend는 Pod의 이름표입니다. 같은 frontend 문자열을 써서 혼동하기 쉽지만 두 필드는 같은 목적이 아닙니다.",
+        "Service는 Deployment의 바깥 metadata.name을 보고 Pod를 고르지 않습니다. Pod의 라벨을 기준으로 선택합니다. Deployment 이름을 바꾸지 않아도 Service selector를 잘못 쓰면 연결이 끊길 수 있습니다.",
+        "kubectl -n study get pods --show-labels로 실제 라벨을 읽고, kubectl -n study get rs로 복제 상태를 보세요. 이미지 변경 전후에 이름·개수·READY를 기록하면 선언과 결과가 연결됩니다."
+      ],
+      "sources": [
+        [
+          "Deployment",
+          "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+        ],
+        [
+          "Labels and Selectors",
+          "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+        ]
+      ]
+    },
+    {
       "title": "복구를 직접 관찰해 봅시다",
       "lead": "실제 Pod 이름 하나를 선택해 삭제한 뒤 목록을 다시 확인합니다.",
       "kind": "LAB",

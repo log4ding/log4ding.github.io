@@ -103,6 +103,149 @@
       ]
     },
     {
+      "title": "네 가지 리소스가 필요한 이유부터",
+      "lead": "상품 목록 FE를 서비스한다고 가정해, 운영 중 생기는 질문을 하나씩 풀어봅니다.",
+      "kind": "READ & UNDERSTAND",
+      "cards": [
+        [
+          "앱을 유지하기",
+          "Pod 하나가 사라지면 누가 다시 만들까요? → ReplicaSet"
+        ],
+        [
+          "버전을 바꾸기",
+          "v1에서 v2로 어떻게 교체할까요? → Deployment"
+        ],
+        [
+          "앱을 찾아가기",
+          "바뀌는 Pod 주소와 외부 요청은 어떻게 연결할까요? → Service + Ingress"
+        ]
+      ],
+      "notes": [
+        "처음에는 노트북에서 서버를 하나 실행하면 화면이 보입니다. 그런데 서버 프로세스가 종료되면 다시 켜야 하고, 사용자가 많아지면 같은 앱을 여러 개 실행해야 합니다. 앱을 여러 개로 늘리면 이번에는 “어느 앱에 요청을 보낼까?”라는 문제가 생깁니다. 이 서로 다른 문제를 나눠 해결하는 것이 이번에 배울 네 가지 리소스입니다.",
+        "Pod는 앱을 실행하는 자리입니다. ReplicaSet은 같은 역할의 Pod 수를 유지하고, Deployment는 새 버전의 Pod를 어떤 템플릿으로 교체할지 관리합니다. Service는 대상 Pod를 찾을 수 있는 접점을 제공하고, Ingress는 외부에서 들어온 HTTP 요청을 어느 Service로 보낼지 표현합니다.",
+        "네 가지 리소스가 반드시 일렬로 요청을 받는 것은 아닙니다. 배포를 관리하는 두 리소스와 요청을 연결하는 두 리소스를 별개의 관계로 이해하면 뒤의 YAML이 훨씬 쉽게 읽힙니다."
+      ],
+      "sources": [
+        [
+          "Controller의 동작",
+          "https://kubernetes.io/docs/concepts/architecture/controller/"
+        ],
+        [
+          "Service로 앱 연결하기",
+          "https://kubernetes.io/docs/tutorials/services/connect-applications-service/"
+        ]
+      ]
+    },
+    {
+      "title": "Deployment: 앱의 실행 계획서",
+      "lead": "“어떤 앱을 몇 개 실행하고, 새 설정을 어떻게 반영할지”를 선언합니다.",
+      "kind": "READ & UNDERSTAND",
+      "flow": [
+        "v1 실행 계획",
+        "템플릿을 v2로 변경",
+        "새 ReplicaSet 준비",
+        "기존·신규 Pod 교체"
+      ],
+      "bullets": [
+        "image: 실행 재료가 되는 컨테이너 이미지",
+        "replicas: 원하는 Pod 개수",
+        "template: 새 Pod를 만들 때 사용하는 양식"
+      ],
+      "notes": [
+        "상품 목록 앱이 fe-study:v1 이미지로 3개 실행 중이라고 합시다. Deployment에는 이 이미지와 복제 개수, 환경 변수, 컨테이너 포트 같은 실행 계획이 들어 있습니다. kubectl apply는 이 선언을 Kubernetes API 서버에 전달합니다. Deployment 자체가 화면 HTML을 응답하는 서버는 아닙니다.",
+        "다음 주에 코드를 수정해 v2 이미지를 만들었다면 Deployment의 Pod 템플릿에 적힌 이미지도 v2로 바꿉니다. 그러면 컨트롤러가 새 템플릿을 위한 ReplicaSet을 만들거나 재사용해 새 Pod를 준비합니다. 기존 Pod의 내부 파일을 직접 편집하는 방식과 다릅니다.",
+        "복제 개수만 3에서 5로 바꾸는 것은 확장입니다. 이미지·환경 변수처럼 Pod 템플릿을 바꾸는 것은 새 Rollout을 일으킵니다. 이 차이는 4주차에서 실제 ReplicaSet 목록으로 확인합니다.",
+        "스스로 설명하기: “Deployment를 수정했는데 왜 새 Pod 이름이 생길까?”에 답해 보세요. 원하는 상태를 선언하고 컨트롤러가 실행 상태를 맞추기 때문입니다."
+      ],
+      "sources": [
+        [
+          "Deployment",
+          "https://kubernetes.io/docs/concepts/workloads/controllers/deployment/"
+        ],
+        [
+          "Controller의 동작",
+          "https://kubernetes.io/docs/concepts/architecture/controller/"
+        ]
+      ]
+    },
+    {
+      "title": "ReplicaSet: 원하는 Pod 수를 맞추는 관리자",
+      "lead": "“frontend 역할의 Pod가 3개 있어야 한다”는 상태를 유지합니다.",
+      "kind": "READ & UNDERSTAND",
+      "flow": [
+        "원하는 수: 3",
+        "현재 수: 2",
+        "새 Pod 1개 생성",
+        "다시 3개"
+      ],
+      "notes": [
+        "Pod 하나를 삭제했다고 해서 기존 Pod가 되살아나는 것은 아닙니다. ReplicaSet 컨트롤러는 부족한 수를 확인하고 새 Pod를 만듭니다. 새 Pod는 새로운 식별자를 가지며 주소도 달라질 수 있습니다. 애플리케이션이 Pod의 이름이나 IP를 영구 식별자로 가정하면 안 되는 이유입니다.",
+        "ReplicaSet은 라벨 조건인 selector로 자신이 관리할 대상을 식별합니다. “replicas: 3”이라는 숫자만 있는 것이 아니라 “어떤 Pod 3개인가”도 필요합니다. 다만 실제 소유 관계는 ownerReferences에서도 확인할 수 있고, 라벨만으로 모든 관리 관계를 설명하지는 않습니다.",
+        "보통 앱 개발자는 Deployment를 작성하고, 그 아래의 ReplicaSet을 직접 편집하지 않습니다. Deployment가 버전별 ReplicaSet을 관리하기 때문입니다. 사용자가 ReplicaSet 수를 임의로 바꾸면 상위 컨트롤러가 다시 원하는 상태로 맞출 수 있습니다.",
+        "새 Pod를 만들 수 있다고 해서 즉시 정상 서비스를 보장하지는 않습니다. 이미지가 없거나 Node 자원이 부족하면 새 Pod는 준비되지 못합니다. 수가 맞는지와 앱이 요청을 받을 준비가 되었는지는 함께 확인해야 합니다."
+      ],
+      "sources": [
+        [
+          "ReplicaSet",
+          "https://kubernetes.io/docs/concepts/workloads/controllers/replicaset/"
+        ],
+        [
+          "Labels and Selectors",
+          "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+        ]
+      ]
+    },
+    {
+      "title": "Service: 바뀌는 Pod 앞의 안정적인 접점",
+      "lead": "앱 인스턴스가 교체되어도 호출자는 같은 Service를 사용합니다.",
+      "kind": "READ & UNDERSTAND",
+      "flow": [
+        "API 호출자",
+        "frontend Service :80",
+        "selector app=frontend",
+        "Pod :8080"
+      ],
+      "notes": [
+        "학교 사무실의 대표 연락처를 떠올려 보세요. 담당자가 교체되어도 외부 사람은 같은 대표 연락처로 문의합니다. Service도 개별 Pod IP 대신 사용할 접점을 제공합니다. 단, 실제 네트워크에서 별도의 “전화 받는 Service 프로세스” 하나가 항상 떠 있다는 뜻은 아닙니다.",
+        "Service의 selector가 app: frontend인 Pod를 찾습니다. 실제 대상 주소는 EndpointSlice 등으로 관리됩니다. Pod가 교체되면 대상 정보가 달라져도 Service가 존재하는 동안 일반적인 ClusterIP와 이름은 유지됩니다. Service 자체를 삭제·재생성하면 주소가 바뀔 수 있습니다.",
+        "port: 80은 호출자가 사용하는 Service 포트이고, targetPort: 8080은 실제 앱 포트입니다. 번호를 같게 쓸 수도 있지만 같아야 하는 규칙은 없습니다. 같은 이름의 Deployment가 있어서 연결되는 것이 아니라 selector와 Pod 라벨이 맞기 때문에 연결됩니다.",
+        "브라우저의 JavaScript는 사용자 PC에서 실행됩니다. 그래서 클러스터 내부의 frontend.study.svc.cluster.local 주소를 그대로 fetch에 적으면 보통 접근할 수 없습니다. 외부에서 접근할 입구를 제공하는 다음 개념이 필요합니다."
+      ],
+      "sources": [
+        [
+          "Service로 앱 연결하기",
+          "https://kubernetes.io/docs/tutorials/services/connect-applications-service/"
+        ],
+        [
+          "Labels and Selectors",
+          "https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/"
+        ]
+      ]
+    },
+    {
+      "title": "Ingress: HTTP 요청의 목적지 안내서",
+      "lead": "호스트와 경로를 보고 어떤 Service로 전달할지 선언합니다.",
+      "kind": "READ & UNDERSTAND",
+      "flow": [
+        "shop.example.com/api",
+        "Ingress 규칙을 적용한 프록시",
+        "API Service",
+        "API Pod"
+      ],
+      "notes": [
+        "예를 들어 같은 쇼핑몰 주소에서 /는 FE, /api는 API 서비스로 보내고 싶을 수 있습니다. Ingress는 이런 호스트·경로와 백엔드 Service의 연결을 표현합니다. IP나 포트만 보는 것이 아니라 HTTP 요청의 정보를 사용할 수 있습니다.",
+        "Ingress YAML은 규칙입니다. 그 규칙을 읽고 프록시를 설정하는 Ingress Controller와 실제 요청을 처리하는 데이터 경로가 있어야 동작합니다. Controller를 설치하지 않고 Ingress 리소스만 만든다고 인터넷 접속이 가능해지는 것은 아닙니다.",
+        "도메인 등록도 자동으로 되지 않습니다. DNS가 외부 진입점 주소를 알려주고, 거기로 도착한 요청을 Ingress 규칙이 분류하는 순서입니다. 5~7주차에서는 DNS 입력 예시와 Ingress·Gateway API의 호스트 설정을 연결해서 읽어봅니다.",
+        "네 리소스의 역할을 다시 말해 보세요. Deployment와 ReplicaSet은 실행을 관리하고, Service와 Ingress는 요청이 앱에 도착할 수 있도록 연결합니다. 사용자가 보내는 HTTP 요청은 Deployment·ReplicaSet을 통과하지 않습니다."
+      ],
+      "sources": [
+        [
+          "Ingress",
+          "https://kubernetes.io/docs/concepts/services-networking/ingress/"
+        ]
+      ]
+    },
+    {
       "title": "두 개의 화살표를 구분하세요",
       "lead": "요청이 흐르는 관계와, 리소스를 관리하는 관계는 다릅니다.",
       "flow": [

@@ -1,0 +1,23 @@
+# 설명용: 실제 Controller 이름, 인증서 Secret, 외부 진입점이 필요합니다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: frontend-domain-example
+  namespace: study
+spec:
+  ingressClassName: your-ingress-class
+  tls:
+    - hosts:
+        - app.example.com
+      secretName: app-example-com-tls
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80

@@ -1,0 +1,28 @@
+# Envoy Gateway v1.9 extension. Not a standard Gateway API resource.
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: advanced-logging
+  namespace: advanced-study
+spec:
+  telemetry:
+    accessLog:
+      settings:
+        - matches:
+            - "true"
+          format:
+            type: JSON
+            json:
+              time: "%START_TIME%"
+              method: "%REQ(:METHOD)%"
+              path: "%REQ(:PATH)%"
+              status: "%RESPONSE_CODE%"
+              duration_ms: "%DURATION%"
+              upstream: "%UPSTREAM_HOST%"
+              response_flags: "%RESPONSE_FLAGS%"
+              request_id: "%REQ(X-REQUEST-ID)%"
+              study_id: "%REQ(X-STUDY-ID)%"
+          sinks:
+            - type: File
+              file:
+                path: /dev/stdout

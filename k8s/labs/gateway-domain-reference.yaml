@@ -1,0 +1,41 @@
+# 설명용: eg GatewayClass 및 같은 Namespace의 TLS Secret이 필요합니다.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: domain-gateway-example
+  namespace: study
+spec:
+  gatewayClassName: eg
+  listeners:
+    - name: https
+      hostname: app.example.com
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - kind: Secret
+            name: app-example-com-tls
+      allowedRoutes:
+        namespaces:
+          from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: frontend-domain-example
+  namespace: study
+spec:
+  parentRefs:
+    - name: domain-gateway-example
+      sectionName: https
+  hostnames:
+    - app.example.com
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend
+          port: 80
