@@ -1266,73 +1266,53 @@
         "callout": "Pod를 어느 Node에 배치할지 정하는 스케줄링 설정도 아닙니다."
       },
       {
-        "title": "두 Region에 각각 구성해도 남는 운영 과제",
-        "lead": "Region A와 B에 Ingress → Service → Pod가 각각 있는 구성을 비교합니다.",
+        "title": "멀티 Region이 있어도 위치 선호가 필요한 이유",
+        "lead": "서비스가 살아 있는 문제와, 정상 요청이 얼마나 멀리 이동하는지는 별개의 문제입니다.",
         "cards": [
           [
-            "Region A",
-            "Ingress A → Service A → Pod A (Deployment A가 관리)"
+            "멀티 Region",
+            "서로 다른 지역에 서비스를 배치합니다. 지역 장애에 대비하거나 사용자 가까이 서비스를 둘 수 있습니다."
           ],
           [
-            "Region B",
-            "Ingress B → Service B → Pod B (Deployment B가 관리)"
+            "trafficDistribution",
+            "선택된 클러스터 안에서 Service의 준비된 Endpoint 중 같은 Zone·Node 대상을 선호하도록 표현합니다."
           ]
         ],
-        "table": {
-          "headers": [
-            "두 Region 구성의 운영 과제",
-            "왜 별도 설계가 필요한가"
-          ],
-          "rows": [
-            [
-              "진입점 선택",
-              "각 Ingress는 자기 클러스터의 경로를 처리합니다. 사용자 요청을 어느 Region으로 보낼지는 상위 계층에서 정합니다."
-            ],
-            [
-              "장애 전환",
-              "A의 Service가 B 클러스터의 같은 이름 Service를 자동으로 찾아주지는 않습니다. 글로벌 상태 확인과 전환 정책이 필요합니다."
-            ],
-            [
-              "설정·배포 일치",
-              "Ingress 경로, 인증서, Service 포트, 앱 버전이 두 Region에서 달라지지 않게 관리해야 합니다."
-            ],
-            [
-              "용량·데이터",
-              "B가 A의 부하까지 받을 용량과 데이터·세션 접근성을 준비해야 합니다."
-            ],
-            [
-              "전환 중 요청",
-              "감지 지연, DNS 캐시(사용 시), 기존 연결 종료와 재시도를 고려합니다."
-            ]
-          ]
-        },
         "notes": [
-          "두 Region에 배포하면 지역 장애를 분리할 기반이 생깁니다. 다만 자원 두 벌을 만드는 것만으로 자동 장애 전환이 완성되지는 않습니다. 이 설명은 Region마다 독립 클러스터가 있는 구성을 기준으로 합니다.",
-          "trafficDistribution 이전에도 이런 멀티 Region 구성은 가능했습니다. trafficDistribution을 추가해도 글로벌 라우팅, 설정 동기화, 데이터 복제 문제가 한꺼번에 해결되지는 않습니다. 같은 Service의 Endpoint 위치 선호와 Region 선택은 별도의 범위입니다.",
-          "Deployment는 요청이 통과하는 네트워크 장비가 아니라 Pod를 관리하는 리소스입니다. 그림에서는 요청 경로와 관리 관계를 구분합니다."
+          "예를 들어 서울과 다른 지역에 각각 클러스터를 만들고 서울로 요청을 보냈다고 합시다. 서울 클러스터도 Zone A·B에 걸쳐 있을 수 있습니다. A의 FE Pod가 API Service를 호출할 때 B의 API Pod가 선택되면, Region 선택은 끝났어도 교차 Zone 통신은 계속 발생합니다.",
+          "교차 Zone 이동을 줄이면 환경에 따라 네트워크 지연과 전송 비용을 줄일 수 있습니다. 멀티 Region은 자원 배치 범위이고 trafficDistribution은 Service 대상 선택의 선호도이므로 서로 대체하는 기능이 아닙니다.",
+          "이 기능 이전에도 Topology Aware Routing 같은 위치 기반 라우팅은 있었습니다. 기존 Auto 방식은 구현체의 판단에 많이 의존했고 사용자가 기대한 위치 선호가 적용되는지 예측하기 어려웠습니다. 반면 Local 정책은 같은 Node에 대상이 없으면 전달하지 않는 엄격한 제한입니다. KEP-4444는 이런 차이를 보완해 Service API에 사용자의 라우팅 선호를 명시하는 필드를 제안했습니다. 멀티 Region의 결함을 고치려고 생긴 기능으로 설명하면 안 됩니다."
         ],
         "sources": [
           [
-            "Service 트래픽 정책",
-            "https://kubernetes.io/docs/reference/networking/virtual-ips/"
+            "trafficDistribution 설계 제안 · 동기와 목표",
+            "https://github.com/kubernetes/enhancements/blob/master/keps/sig-network/4444-service-traffic-distribution/README.md"
           ],
           [
-            "글로벌 라우팅의 역할",
-            "https://docs.aws.amazon.com/global-accelerator/latest/dg/introduction-how-it-works.html"
+            "Service 대상 선택",
+            "https://kubernetes.io/docs/reference/networking/virtual-ips/"
           ]
         ]
       },
       {
-        "title": "애니메이션: 정상 선택과 Zone 대상 장애",
-        "lead": "Service 위치 선호의 범위를 직접 재생해 보세요.",
+        "title": "정상 상태 비교: 가까운 Pod가 있는데 왜 멀리 갈까요?",
+        "lead": "Pod 배치는 그대로 두고, Service의 위치 선호만 달리합니다.",
         "networkAnimation": "zone",
+        "code": "spec:\n  trafficDistribution: PreferSameZone",
         "notes": [
-          "이 그림은 같은 클러스터 안의 Zone A 호출자가 살아 있으며, Zone A의 서비스 대상만 실패한 경우입니다. 감지·전파 지연 이후 준비된 Zone B Endpoint로 fallback하는 개념 흐름입니다.",
-          "엄격한 Local 정책이 없다는 전제입니다. Region 장애 전환 그림은 심화 A06에서 글로벌 진입점과 데이터·재시도 조건을 함께 설명합니다."
+          "왼쪽은 위치 선호·기존 topology annotation이 없고 일반 Cluster 정책인 경우, 오른쪽은 PreferSameZone을 지원하는 Service 프록시가 같은 Zone의 준비된 Endpoint를 사용하는 경우입니다. A·B 모두 정상이고 호출자는 Zone A의 FE Pod입니다. “가까운”의 기준은 브라우저 사용자가 아니라 Service를 호출하는 클라이언트의 위치입니다.",
+          "두 그림은 하나의 클러스터를 설정 전후로 복제해서 비교한 것입니다. B의 준비된 Pod가 고장 나서 A를 선택하는 것이 아닙니다. 위치 선호가 없으면 준비된 다른 Zone의 Pod도 후보가 됩니다. 화면의 교대 순서와 건수는 이해를 위한 고정 표본이며 실제 kube-proxy 알고리즘이나 성능 결과가 아닙니다.",
+          "같은 Zone 대상이 없으면 다른 Zone의 대상으로 fallback할 수 있습니다. 이 역시 같은 Service가 가진 Endpoint 범위이며 다른 Region의 독립 클러스터를 찾아주는 기능은 아닙니다. Local 정책 등 엄격한 제한은 별도로 확인해야 합니다.",
+          "위치 선호가 모든 환경에서 최선인 것은 아닙니다. Zone A에 요청이 몰리고 Pod가 적으면 A의 Pod가 과부하될 수 있습니다. Pod 배치·용량·부하 편중을 함께 점검합니다. 한 Node 실습에서는 이 차이를 측정하기 어렵습니다.",
+          "그림의 Service는 논리적 대상 선택 지점입니다. 별도 서버 한 대를 거쳐 돌아온다는 뜻은 아닙니다. Ingress 구현체가 Service VIP를 거치지 않고 Endpoint에 직접 연결하는 경우에는 이 필드가 그 경로에도 적용되는지 구현 문서로 확인해야 합니다."
         ],
         "sources": [
           [
-            "Service 트래픽 정책",
+            "Service",
+            "https://kubernetes.io/docs/concepts/services-networking/service/"
+          ],
+          [
+            "Virtual IP",
             "https://kubernetes.io/docs/reference/networking/virtual-ips/"
           ]
         ]
@@ -2440,9 +2420,9 @@
   {
     "id": "A06",
     "track": "advanced",
-    "short": "Zone · Region 장애 전환",
-    "title": "가까운 대상으로, 살아 있는 Region으로",
-    "description": "Service 위치 선호와 글로벌 장애 전환을 구분합니다.",
+    "short": "멀티 Region · 두 선택 계층",
+    "title": "Region 선택과 Pod 선택은 다른 단계",
+    "description": "멀티 Region 구조 위에서 위치 선호가 어디에 적용되는지 구분합니다.",
     "type": "심화 · 개념 + 관찰",
     "sources": [
       [
@@ -2464,25 +2444,45 @@
     ],
     "slides": [
       {
-        "title": "세 범위를 먼저 나눕니다",
-        "lead": "Node·Zone·Region은 같은 단위가 아닙니다.",
-        "cards": [
-          [
-            "Node",
-            "Pod가 실행되는 컴퓨터."
+        "title": "둘 중 하나를 고르는 문제가 아닙니다",
+        "lead": "멀티 Region은 배치 구조이고, trafficDistribution은 Service의 라우팅 선호 설정입니다.",
+        "table": {
+          "headers": [
+            "구분",
+            "멀티 Region + 글로벌 라우팅",
+            "Service trafficDistribution"
           ],
-          [
-            "Zone",
-            "Region 안의 장애 격리 구역. 하나의 클러스터가 여러 Zone에 걸칠 수 있습니다."
-          ],
-          [
-            "Region",
-            "지역 단위. 이 예시는 Region마다 별도 클러스터가 있다고 가정합니다."
+          "rows": [
+            [
+              "결정할 대상",
+              "어느 Region의 진입점으로 보낼까",
+              "같은 Service의 어느 Endpoint로 보낼까"
+            ],
+            [
+              "이 예시의 범위",
+              "두 독립 클러스터 · 각각의 Service",
+              "한 클러스터 · 여러 Zone의 API Pod"
+            ],
+            [
+              "정상일 때 목적",
+              "지역별 사용자·부하 배분",
+              "불필요한 교차 Zone·Node 이동 감소"
+            ],
+            [
+              "장애 때 역할",
+              "별도 헬스 체크로 다른 Region 선택",
+              "가까운 대상이 없으면 가용 Endpoint로 fallback"
+            ],
+            [
+              "해결하지 않는 것",
+              "클러스터 내부의 위치 선호를 자동 설정하지 않음",
+              "독립 Region 탐색·전환·데이터 복제를 제공하지 않음"
+            ]
           ]
-        ],
+        },
         "notes": [
-          "두 Region에 각각 Ingress·Service·Deployment를 두는 구성에서도 진입점 선택과 장애 전환은 별도 계층이 담당합니다. trafficDistribution은 이 두 클러스터를 자동으로 연결하는 기능이 아닙니다.",
-          "Deployment와 ReplicaSet은 요청 경로의 홉이 아닙니다. Region A의 Ingress/Gateway → Service 대상 → Pod로 요청이 흐르고, Deployment는 Pod들을 관리합니다."
+          "둘 다 목적지를 고른다는 공통점만 그림으로 강조하면 같은 기능처럼 보입니다. 선택 시점과 후보 집합이 다릅니다. 글로벌 라우터의 후보는 지역별 진입점, Service의 후보는 그 Service에 연결된 Endpoint입니다.",
+          "이번 자료는 Region마다 독립 클러스터를 둔 일반적인 구성을 가정합니다. 별도의 멀티 클러스터 네트워크·서비스 메시 제품 기능을 Service의 기본 trafficDistribution 필드와 혼동하지 않습니다."
         ]
       },
       {
@@ -2543,20 +2543,21 @@
         ]
       },
       {
-        "title": "Service 안에서 가까운 Endpoint 선호",
-        "lead": "같은 클러스터의 Service가 다른 Zone의 준비된 Endpoint도 가지고 있다고 가정합니다.",
-        "networkAnimation": "zone",
+        "title": "함께 쓰면: Region 선택 후, 그 안에서 Pod 선택",
+        "lead": "기본 과정의 Zone 애니메이션을 반복하지 않고 두 설정의 위치를 한 장으로 연결합니다.",
+        "networkAnimation": "layers",
         "notes": [
-          "재생을 누르면 Zone A의 호출자가 정상 상태에서 같은 Zone의 Endpoint를 선호합니다. Zone A 대상 장애를 누르면 감지·Endpoint 반영 전 실패와 이후 Zone B fallback을 비교합니다.",
-          "이 시뮬레이션은 호출자가 살아 있고 Zone A의 대상만 사용할 수 없어진 상황입니다. 호출자까지 사라지는 전체 Zone 장애와 다릅니다. internalTrafficPolicy=Local 같은 엄격한 제한이 없고, 프록시가 위치 선호를 지원하며 Zone B에 준비된 대상이 있다고 가정합니다.",
-          "점 하나는 관찰하기 쉽게 만든 한 번의 요청 시도입니다. 실제 Service 데이터 경로는 연결 단위 선택·연결 재사용 등 구현 차이가 있습니다. 시간과 분산 비율은 실측값이 아닙니다."
+          "외부 요청은 글로벌 라우팅을 통해 Region A의 Ingress로 들어옵니다. FE 서버 Pod가 API Service를 호출할 때에는 별도의 내부 요청이 시작됩니다. 이 내부 요청에서 API Service의 위치 선호를 적용할 수 있습니다.",
+          "Region B로 진입점이 바뀌어도 B 안에서 같은 선택이 필요합니다. 멀티 Region만 구성했다고 B의 교차 Zone 통신까지 자동으로 줄어드는 것은 아닙니다. 반대로 내부 통신을 최적화했다고 Region A의 전체 장애를 극복할 수 있는 것도 아닙니다.",
+          "브라우저에서 API를 직접 호출하는 정적 FE 구조라면 실제 호출자는 Gateway 프록시일 수 있습니다. 구현체가 Endpoint에 직접 라우팅하면 별도의 locality 정책이 필요할 수 있습니다. 여기서는 FE 서버 Pod가 ClusterIP API Service를 호출하는 경로로 한정합니다."
         ]
       },
       {
-        "title": "Region 장애는 글로벌 진입점에서 전환",
-        "lead": "지역별 클러스터 바깥의 라우팅 계층이 살아 있는 Region을 선택합니다.",
+        "title": "지역 전체 장애: 글로벌 LB가 다른 클러스터로 전환",
+        "lead": "두 Region 각각의 Ingress·Service·Pod를 독립된 경계 안에 표시했습니다.",
         "networkAnimation": "region",
         "notes": [
+          "이 그림에서는 trafficDistribution 값을 바꾸지 않습니다. A의 지역 전체 장애를 감지하는 주체는 클러스터 바깥의 글로벌 LB이고, 전환 대상은 독립된 B의 진입점입니다. 기본 8주차의 정상 상태 위치 최적화와 비교해 보세요.",
           "정상 상태는 두 Region으로 요청을 나누는 개념 예시입니다. Region A 장애 버튼을 누르면 감지 전의 실패를 먼저 보여주고, 글로벌 헬스 체크 반영 후 새 요청이 B로 가는 흐름을 보여줍니다. 균등 비율은 설명용이며 실제 정책·지연·용량에 따라 달라집니다.",
           "이 동작은 Service trafficDistribution이 제공하는 멀티 Region 전환이 아닙니다. 글로벌 로드밸런서 또는 DNS 기반 전환 등 별도 구성이 필요합니다. DNS 방식이라면 TTL·캐시가 추가로 작용합니다.",
           "기존 TCP 연결이나 이미 전송 중인 요청이 자동으로 B에 옮겨지는 것은 아닙니다. 안전한 GET 재시도를 켜면 실패한 논리 요청을 B에서 다시 처리하는 경로를 볼 수 있습니다. 실패 시도 기록은 성공 후에도 남깁니다."

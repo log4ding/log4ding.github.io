@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFile,access,mkdtemp,writeFile,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {initialTraffic,advanceTraffic} from '../k8s/traffic-animation.js';
+import {initialTraffic,advanceTraffic,localityStep} from '../k8s/traffic-animation.js';
 import {createStudyApp} from '../k8s/labs/advanced/server.mjs';
 const chapters=JSON.parse(await readFile(new URL('../k8s/catalog.json',import.meta.url),'utf8'));
 assert.equal(chapters.length,16);
@@ -11,7 +11,7 @@ for(const c of chapters)for(const s of c.slides){
  if(s.file)await access(new URL('../k8s/labs/'+s.file,import.meta.url));
  if(s.assignment){assignments++;assert.equal(s.assignment.criteria.reduce((n,r)=>n+parseInt(r[1]),0),100);}
 }assert.equal(assignments,3);
-for(const mode of ['zone','region']){
+for(const mode of ['region']){
  let s=initialTraffic(mode);
  s=advanceTraffic(s).state;s.failedAt=s.tick;
  for(let i=0;i<2;i++)s=advanceTraffic(s).state;
@@ -20,6 +20,8 @@ for(const mode of ['zone','region']){
  while(s.pending.length)s=advanceTraffic(s,true).state;
  assert.equal(s.total,s.success);assert.equal(s.failures,failures);assert.ok(s.retries>0);
 }
+const samples=Array.from({length:8},(_,i)=>localityStep(i));
+assert.ok(samples.some(s=>s.before==='B'));assert.ok(samples.some(s=>s.before==='A'));assert.ok(samples.every(s=>s.after==='A'));
 const dir=await mkdtemp(path.join(os.tmpdir(),'k8s-study-'));
 const logs=[];let slowStarted;
 const started=new Promise(resolve=>slowStarted=resolve);
