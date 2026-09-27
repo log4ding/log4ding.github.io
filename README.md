@@ -4,7 +4,7 @@
 
 강의 파일은 `k8s/chapters/*.json` 및 `k8s/advanced/*.json`에서 관리합니다. `node scripts/build.mjs`를 실행하면 폴더를 읽어 강의 목록을 생성합니다. `node scripts/serve.mjs`로 로컬 미리보기를 실행합니다.
 
-기본 10주 + 심화 6챕터·116개 슬라이드에 개념, 상세 해설, 실습 명령, 예상 결과, 확인 문제와 공식 문서 링크를 포함합니다. 발표 모드, 전체 읽기, 키보드 이동, 코드 복사, 로컬 학습 완료 표시를 지원합니다. 9주차에는 Rolling Update·Blue-Green·Canary의 단계별 그림이 있습니다.
+기본 10주 + 심화 6챕터·118개 슬라이드에 개념, 상세 해설, 실습 명령, 예상 결과, 확인 문제와 공식 문서 링크를 포함합니다. 발표 모드, 전체 읽기, 키보드 이동, 코드 복사, 로컬 학습 완료 표시를 지원합니다. 9주차에는 Rolling Update·Blue-Green·Canary의 단계별 그림이 있습니다.
 
 GitHub Pages는 `.github/workflows/pages.yml`을 사용하며 저장소 Settings → Pages의 Source를 GitHub Actions로 설정합니다. 이미 브랜치 기반 Pages를 사용한다면 루트의 `index.html`과 미리 생성된 `catalog.json`으로도 열립니다.
 
@@ -19,3 +19,7 @@ GitHub Pages는 `.github/workflows/pages.yml`을 사용하며 저장소 Settings
 심화 과정: Probe → preStop·정상 종료 → /·/api 라우팅과 Rewrite → 접근 로그와 헤더 → 배포 관찰 → Zone·Region 장애 전환. 멀티 Region 그림은 각 Region의 독립 Ingress·Service·Deployment와 글로벌 라우팅을 구분합니다. 애니메이션의 시간·비율은 개념 설명이며 무손실 보장이 아닙니다. 재생·단계 이동·장애·GET 재시도를 지원하고 동작 줄이기 설정에서는 정적 단계로 표시합니다.
 
 8주차 위치 선호 애니메이션은 모든 Pod가 정상인 상태에서 설정 전후의 교차 Zone 이동을 비교합니다. A06은 글로벌 LB 아래 두 독립 클러스터를 보여주며, 두 계층을 함께 쓰는 별도 구성도도 제공합니다. 정상 상태의 통신 최적화와 Region 전체 장애 전환을 구별합니다.
+
+1주차 도입 다음 장에 핵심 용어와 분야별 용어 사전을 제공합니다. 홈 버튼과 사이드바의 용어 정리에서 바로 열 수 있습니다.
+
+1주차 첫 장은 온프레미스 → Docker → 여러 서버의 운영 문제 → Kubernetes의 필요성으로 시작합니다. 역사적 필연이나 온프레미스 전용 도구로 설명하지 않습니다.

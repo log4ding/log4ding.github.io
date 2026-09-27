@@ -17,6 +17,109 @@
     ],
     "slides": [
       {
+        "kind": "WHY KUBERNETES",
+        "title": "Docker로 실행했는데, 왜 Kubernetes가 필요할까요?",
+        "lead": "회사 서버에 앱 하나를 띄우는 일에서, 여러 서버의 앱을 계속 운영하는 일로 커지면 문제가 달라집니다.",
+        "cards": [
+          [
+            "① 온프레미스 서버",
+            "회사가 직접 관리하는 서버에 앱을 배포합니다. 서버마다 설치된 실행 환경이 달라 관리가 어려울 수 있습니다."
+          ],
+          [
+            "② Docker로 컨테이너 실행",
+            "앱과 필요한 환경을 이미지로 묶어 배포·실행하기 편해집니다. 여러 서버에 무엇을 몇 개 띄울지는 여전히 관리해야 합니다."
+          ],
+          [
+            "③ Kubernetes로 운영 자동화",
+            "원하는 상태를 선언하면 여러 서버에 Pod를 배치하고, 부족한 수를 보충하고, 확장과 순차 업데이트를 관리합니다."
+          ]
+        ],
+        "callout": "Docker는 앱을 컨테이너로 만들고 실행하는 도구 · Kubernetes는 여러 컨테이너 앱의 배치와 실행 상태를 조정하는 플랫폼",
+        "notes": [
+          "온프레미스(on-premises)는 회사가 자체 서버·데이터센터 등에서 인프라를 운영하는 환경을 말합니다. 예를 들어 FE 웹 서버를 회사 서버 한 대에서 시작했다가, 사용자가 늘어 세 대에서 운영하는 상황을 생각해 보세요.",
+          "Docker는 컨테이너를 만들고 실행하는 도구입니다. 이미지로 앱과 의존성을 묶으면 서버마다 환경을 준비하는 차이를 줄일 수 있습니다. 하지만 Docker만으로 여러 서버에 컨테이너를 실행해 놓았다고 해서 전체 서버의 원하는 상태가 자동으로 관리되는 것은 아닙니다. 단일 서버의 재시작 정책 등과 클러스터 전체 조정을 구분해야 합니다.",
+          "서버 한 대가 꺼지면 어디에 다시 실행할지, 앱을 3개에서 10개로 늘릴 때 어느 서버를 쓸지, 새 버전을 어떤 순서로 교체할지 같은 문제가 남습니다. 이런 여러 컨테이너의 배치와 운영을 조정하는 일을 컨테이너 오케스트레이션이라고 합니다. Kubernetes는 이를 위한 플랫폼입니다.",
+          "Kubernetes가 Docker와 온프레미스만을 위해 만들어진 것은 아닙니다. Google의 대규모 운영 경험을 바탕으로 발전했고, 온프레미스와 클라우드 모두에서 활용할 수 있습니다. 위 순서는 등장 연표가 아니라 필요성을 이해하기 위한 운영 예시입니다.",
+          "Docker로 만든 호환 이미지를 Kubernetes에서 실행할 수 있지만 Node에 Docker Engine이 반드시 필요한 것은 아닙니다. Kubernetes는 containerd·CRI-O 같은 CRI 호환 런타임과 연결합니다. 이 수업에서는 Docker를 이미지 빌드와 로컬 실습에 사용합니다.",
+          "앱 하나를 운영하는 모든 환경에 Kubernetes가 필요한 것은 아닙니다. 관리할 규모와 요구사항에 비해 도입·운영 복잡도가 큰지도 함께 판단합니다."
+        ],
+        "sources": [
+          [
+            "Kubernetes 개요 · 배포 방식의 변화와 필요성",
+            "https://kubernetes.io/docs/concepts/overview/"
+          ],
+          [
+            "컨테이너 런타임",
+            "https://kubernetes.io/docs/setup/production-environment/container-runtimes/"
+          ]
+        ]
+      },
+      {
+        "title": "시작하기 전에 · 용어 정리",
+        "kind": "START HERE",
+        "lead": "우선 여섯 단어의 관계만 읽어보세요. 전체 용어 사전은 이 장 아래에서 찾아볼 수 있습니다.",
+        "table": {
+          "headers": [
+            "용어",
+            "쉽게 말하면"
+          ],
+          "rows": [
+            [
+              "Cluster",
+              "Kubernetes로 함께 관리하는 전체 실행 환경"
+            ],
+            [
+              "Node",
+              "그 안에서 앱을 실행하는 컴퓨터"
+            ],
+            [
+              "Pod",
+              "컨테이너를 담아 실행하는 기본 단위"
+            ],
+            [
+              "Deployment",
+              "Pod의 배포와 새 버전 업데이트를 관리"
+            ],
+            [
+              "ReplicaSet",
+              "원하는 개수의 Pod가 유지되도록 관리"
+            ],
+            [
+              "Service",
+              "변하는 Pod 앞에서 이름과 접속 지점을 제공"
+            ]
+          ]
+        },
+        "callout": "관리 관계: Deployment → ReplicaSet → Pod / 요청 전달: Service의 대상 Pod로 연결",
+        "glossary": true,
+        "notes": [
+          "전부 외우고 시작하지 않아도 됩니다. “앱 실행”, “실행 상태 관리”, “요청 연결”이라는 역할 차이만 먼저 구분하세요. 다음 장부터 예제로 하나씩 익힙니다.",
+          "아래 용어 사전은 요청과 주소 → 실행과 관리 → 라우팅 → 운영 순서입니다. 마지막 운영 용어는 심화 과정에서 다시 읽어도 됩니다."
+        ],
+        "sources": [
+          [
+            "Kubernetes 공식 용어집",
+            "https://kubernetes.io/docs/reference/glossary/"
+          ],
+          [
+            "Kubernetes 개요",
+            "https://kubernetes.io/docs/concepts/overview/"
+          ],
+          [
+            "구성 요소",
+            "https://kubernetes.io/docs/concepts/overview/components/"
+          ],
+          [
+            "Service",
+            "https://kubernetes.io/docs/concepts/services-networking/service/"
+          ],
+          [
+            "Gateway API 개요",
+            "https://gateway-api.sigs.k8s.io/concepts/api-overview/"
+          ]
+        ]
+      },
+      {
         "title": "앱을 만들었다. 그다음은?",
         "lead": "브라우저에 보이는 화면 뒤에는, 항상 실행 중이어야 하는 프로그램이 있습니다.",
         "cards": [
